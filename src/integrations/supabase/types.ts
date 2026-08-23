@@ -315,7 +315,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_shared_journey: {
+        Args: { _token: string }
+        Returns: {
+          current_lat: number
+          current_lng: number
+          dest_address: string
+          dest_lat: number
+          dest_lng: number
+          eta: string
+          started_at: string
+          status: string
+          travel_mode: string
+          traveller: string
+          updated_at: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
