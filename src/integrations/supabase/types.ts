@@ -14,13 +14,323 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      community_reports: {
+        Row: {
+          address: string | null
+          category: string
+          confirmations: number
+          created_at: string
+          description: string | null
+          id: string
+          lat: number
+          lng: number
+          photo_url: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          category: string
+          confirmations?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          lat: number
+          lng: number
+          photo_url?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          category?: string
+          confirmations?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          lat?: number
+          lng?: number
+          photo_url?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      journey_shares: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          journey_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          journey_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          journey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_shares_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "trusted_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journey_shares_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "journeys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journeys: {
+        Row: {
+          current_lat: number | null
+          current_lng: number | null
+          dest_address: string | null
+          dest_lat: number
+          dest_lng: number
+          distance_meters: number | null
+          duration_seconds: number | null
+          ended_at: string | null
+          eta: string | null
+          id: string
+          is_shared: boolean
+          origin_address: string | null
+          origin_lat: number
+          origin_lng: number
+          share_token: string | null
+          started_at: string
+          status: string
+          travel_mode: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          current_lat?: number | null
+          current_lng?: number | null
+          dest_address?: string | null
+          dest_lat: number
+          dest_lng: number
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          eta?: string | null
+          id?: string
+          is_shared?: boolean
+          origin_address?: string | null
+          origin_lat: number
+          origin_lng: number
+          share_token?: string | null
+          started_at?: string
+          status?: string
+          travel_mode?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          current_lat?: number | null
+          current_lng?: number | null
+          dest_address?: string | null
+          dest_lat?: number
+          dest_lng?: number
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          eta?: string | null
+          id?: string
+          is_shared?: boolean
+          origin_address?: string | null
+          origin_lat?: number
+          origin_lng?: number
+          share_token?: string | null
+          started_at?: string
+          status?: string
+          travel_mode?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      recent_destinations: {
+        Row: {
+          address: string | null
+          id: string
+          label: string
+          lat: number
+          lng: number
+          searched_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          id?: string
+          label: string
+          lat: number
+          lng: number
+          searched_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          id?: string
+          label?: string
+          lat?: number
+          lng?: number
+          searched_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      report_confirmations: {
+        Row: {
+          created_at: string
+          id: string
+          report_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          report_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          report_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_confirmations_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "community_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trusted_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          relationship: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          relationship?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          relationship?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          auto_share_journeys: boolean
+          created_at: string
+          deviation_alerts: boolean
+          preferred_mode: string
+          safety_check_minutes: number
+          store_location_history: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_share_journeys?: boolean
+          created_at?: string
+          deviation_alerts?: boolean
+          preferred_mode?: string
+          safety_check_minutes?: number
+          store_location_history?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_share_journeys?: boolean
+          created_at?: string
+          deviation_alerts?: boolean
+          preferred_mode?: string
+          safety_check_minutes?: number
+          store_location_history?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_shared_journey: {
+        Args: { _token: string }
+        Returns: {
+          current_lat: number
+          current_lng: number
+          dest_address: string
+          dest_lat: number
+          dest_lng: number
+          eta: string
+          started_at: string
+          status: string
+          travel_mode: string
+          traveller: string
+          updated_at: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
