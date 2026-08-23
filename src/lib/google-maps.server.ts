@@ -32,13 +32,12 @@ export async function mapsFetch<T>(
   };
   if (init?.body !== undefined) headers["Content-Type"] = "application/json";
 
+  const requestInit: RequestInit = { method: init?.method ?? "GET", headers };
+  if (init?.body !== undefined) requestInit.body = JSON.stringify(init.body);
+
   let response: Response;
   try {
-    response = await fetch(`${GATEWAY_URL}${path}`, {
-      method: init?.method ?? "GET",
-      headers,
-      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
-    });
+    response = await fetch(`${GATEWAY_URL}${path}`, requestInit);
   } catch {
     throw new MapsUnavailableError("We couldn't reach the map service. Check your connection.");
   }
