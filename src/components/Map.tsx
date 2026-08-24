@@ -14,7 +14,7 @@ interface Props {
   onMapClick?: (p: LatLng) => void;
 }
 
-function Fallback({ className }: { className?: string }) {
+function Fallback({ className }: { className?: string | undefined }) {
   return (
     <div className={`${className ?? "h-full w-full"} animate-pulse bg-muted`} aria-hidden="true" />
   );
