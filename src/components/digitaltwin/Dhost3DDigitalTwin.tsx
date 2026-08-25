@@ -74,15 +74,20 @@ interface DisasterConfig {
   icon: string;
   color: string;
   scenarioTitle: string;
+  incidentLandmark: string;
   casualtySummary: string;
   hazardDescription: string;
   skyColor: number;
   fogColor: number;
+  incidentPos: [number, number, number];
+  safeZonePos: [number, number, number];
+  safeZoneName: string;
+  cameraIncidentPos: [number, number, number];
   options: RescuePossibility[];
 }
 
 /**
- * 6 Comprehensive Disaster Configurations with Real-Time AI Rescue Strategies
+ * 6 Disaster Configurations with Unique Spatial 3D Locations & Real-Time AI Strategies
  */
 const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
   FLOOD: {
@@ -91,10 +96,15 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     icon: '🌊',
     color: 'from-blue-600 to-cyan-500',
     scenarioTitle: 'Urban Inundation (4.2ft Surge)',
+    incidentLandmark: 'Old Bridge Sector Flooded Rooftop',
     casualtySummary: '14 Stranded on Rooftop • 2 Fractures',
     hazardDescription: 'Rapid 4.2ft currents, submerged 11kV lines',
     skyColor: 0x020617,
     fogColor: 0x031525,
+    incidentPos: [-18, 12, 12],
+    safeZonePos: [50, 18, -45],
+    safeZoneName: '🏥 Govt Hospital High-Ground Shelter',
+    cameraIncidentPos: [-28, 22, 28],
     options: [
       {
         id: 'ZODIAC_BOAT',
@@ -144,10 +154,15 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     icon: '🏚️',
     color: 'from-amber-600 to-stone-500',
     scenarioTitle: 'Magnitude 6.8 Urban Rupture',
+    incidentLandmark: 'Downtown Central Tower Rubble Void',
     casualtySummary: '9 Trapped in Basement Rubble Void',
     hazardDescription: 'Aftershock collapse hazard, gas lines, unstable slabs',
     skyColor: 0x0f172a,
     fogColor: 0x1c1917,
+    incidentPos: [-35, 2.5, -20],
+    safeZonePos: [45, 2, 40],
+    safeZoneName: '🏟️ City Stadium Seismic Relief Base',
+    cameraIncidentPos: [-45, 15, -5],
     options: [
       {
         id: 'K9_ACOUSTIC',
@@ -197,10 +212,15 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     icon: '🔥',
     color: 'from-red-600 to-orange-500',
     scenarioTitle: 'Fast Crown Fire Front (28 km/h)',
+    incidentLandmark: 'East Forest Timber Factory Perimeter',
     casualtySummary: '16 Trapped in Concrete Fire Shelter',
     hazardDescription: '850°C heat, zero-visibility toxic smoke',
     skyColor: 0x270707,
     fogColor: 0x3d0c02,
+    incidentPos: [35, 7, 30],
+    safeZonePos: [-45, 2, -35],
+    safeZoneName: '⚓ Upwind Marine Pier Shelter',
+    cameraIncidentPos: [25, 20, 48],
     options: [
       {
         id: 'AIR_BOMBER',
@@ -250,10 +270,15 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     icon: '🌪️',
     color: 'from-teal-600 to-cyan-700',
     scenarioTitle: 'Category 4 Squall (140 km/h Gusts)',
+    incidentLandmark: 'Coastal Fishermen Community Hall',
     casualtySummary: '11 Stranded in Coastal Hall',
     hazardDescription: 'Airborne metal sheet debris, severed power grid',
     skyColor: 0x04131e,
     fogColor: 0x08253a,
+    incidentPos: [-45, 5, 35],
+    safeZonePos: [40, 14, -20],
+    safeZoneName: '🛡️ Reinforced Inland Cyclone Bunker',
+    cameraIncidentPos: [-55, 18, 50],
     options: [
       {
         id: 'ARMORED_4X4',
@@ -303,10 +328,15 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     icon: '☣️',
     color: 'from-emerald-600 to-lime-500',
     scenarioTitle: 'Toxic Industrial Vapor Plume',
+    incidentLandmark: 'North Chemical Processing Reactor',
     casualtySummary: '8 Workers Trapped in Control Room',
     hazardDescription: 'Lethal LC50 gas plume, caustic vapor burns',
     skyColor: 0x031c12,
     fogColor: 0x062d1d,
+    incidentPos: [0, 5, -50],
+    safeZonePos: [-35, 2, 45],
+    safeZoneName: '☣️ Mobile Decontamination Base',
+    cameraIncidentPos: [-12, 18, -32],
     options: [
       {
         id: 'HAZMAT_DRONE_SCBA',
@@ -356,10 +386,15 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     icon: '🏔️',
     color: 'from-amber-700 to-yellow-600',
     scenarioTitle: 'Slope Failure Burying Valley Highway',
+    incidentLandmark: 'Mountain Pass Valley Roadway',
     casualtySummary: '12 Stranded in Mountain Bus',
     hazardDescription: 'Secondary slope failure risk, severed access road',
     skyColor: 0x0a101d,
     fogColor: 0x141a29,
+    incidentPos: [-25, 6, -35],
+    safeZonePos: [45, 22, 25],
+    safeZoneName: '🚁 Alpine Heli-Plateau Safe Zone',
+    cameraIncidentPos: [-35, 18, -18],
     options: [
       {
         id: 'LONG_LINE_HELO',
@@ -630,16 +665,20 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     const width = container.clientWidth;
     const height = container.clientHeight;
 
+    const [ix, iy, iz] = currentDisaster.incidentPos;
+    const [sx, sy, sz] = currentDisaster.safeZonePos;
+
     // 1. Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(currentDisaster.skyColor);
     scene.fog = new THREE.FogExp2(currentDisaster.fogColor, 0.007);
     sceneRef.current = scene;
 
-    // 2. Camera
+    // 2. Camera: Smoothly point towards the active disaster incident location
     const camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
-    camera.position.set(-25, 55, 85);
-    camera.lookAt(-5, 8, 0);
+    const [cpx, cpy, cpz] = currentDisaster.cameraIncidentPos;
+    camera.position.set(cpx, cpy, cpz);
+    camera.lookAt(ix, iy, iz);
     cameraRef.current = camera;
 
     // 3. Renderer
@@ -663,11 +702,11 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     scene.add(dirLight);
 
     const amberLight = new THREE.PointLight(0xf59e0b, 4, 120);
-    amberLight.position.set(-18, 25, 10);
+    amberLight.position.set(ix, iy + 10, iz);
     scene.add(amberLight);
 
     const victimRedLight = new THREE.PointLight(0xef4444, 6, 50);
-    victimRedLight.position.set(-18, 16, 12);
+    victimRedLight.position.set(ix, iy + 4, iz);
     scene.add(victimRedLight);
 
     // 5. Ground Plane Grid
@@ -711,9 +750,9 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
     for (let x = -90; x <= 90; x += 26) {
       for (let z = -90; z <= 90; z += 26) {
-        if (Math.abs(x) < 24) continue;
-        if (x >= 35 && z <= -30) continue;
-        if (x <= -10 && x >= -28 && z >= 0 && z <= 24) continue;
+        if (Math.abs(x) < 20) continue;
+        if (Math.abs(x - sx) < 18 && Math.abs(z - sz) < 18) continue; // Safe zone reserve
+        if (Math.abs(x - ix) < 15 && Math.abs(z - iz) < 15) continue; // Incident reserve
 
         let bHeight = Math.floor(Math.random() * 16) + 8;
         const bWidth = Math.floor(Math.random() * 4) + 14;
@@ -747,72 +786,72 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       }
     }
 
-    // 8. INCIDENT SCENE STRUCTURE (-18, 0, 12)
-    const strandedBldgGroup = new THREE.Group();
-    strandedBldgGroup.position.set(-18, 0, 12);
+    // 8. DISASTER INCIDENT SITE STRUCTURE AT EXACT INCIDENT LOCATION (ix, iy, iz)
+    const incidentSiteGroup = new THREE.Group();
+    incidentSiteGroup.position.set(ix, 0, iz);
 
-    const strandedGeo = new THREE.BoxGeometry(20, 12, 20);
-    const strandedMesh = new THREE.Mesh(strandedGeo, officeMat);
-    strandedMesh.position.y = 6;
-    strandedMesh.castShadow = true;
-    strandedBldgGroup.add(strandedMesh);
+    const incidentBldgGeo = new THREE.BoxGeometry(20, iy, 20);
+    const incidentBldgMesh = new THREE.Mesh(incidentBldgGeo, officeMat);
+    incidentBldgMesh.position.y = iy / 2;
+    incidentBldgMesh.castShadow = true;
+    incidentSiteGroup.add(incidentBldgMesh);
 
     const roofParapet = new THREE.Mesh(new THREE.BoxGeometry(20.4, 0.9, 20.4), new THREE.MeshStandardMaterial({ color: 0x475569 }));
-    roofParapet.position.y = 12.45;
-    strandedBldgGroup.add(roofParapet);
+    roofParapet.position.y = iy + 0.45;
+    incidentSiteGroup.add(roofParapet);
 
-    buildingsGroup.add(strandedBldgGroup);
+    buildingsGroup.add(incidentSiteGroup);
 
-    // 9. HOSPITAL SAFE ZONE (50, 0, -45)
-    const hospGroup = new THREE.Group();
-    hospGroup.position.set(50, 0, -45);
+    // 9. SAFE ZONE / HOSPITAL SHELTER AT (sx, sy, sz)
+    const safeZoneGroup = new THREE.Group();
+    safeZoneGroup.position.set(sx, 0, sz);
 
-    const hospGeo = new THREE.BoxGeometry(30, 18, 30);
-    const hospMesh = new THREE.Mesh(hospGeo, new THREE.MeshStandardMaterial({ map: hospTexture, roughness: 0.3, metalness: 0.4 }));
-    hospMesh.position.y = 9;
-    hospMesh.castShadow = true;
-    hospGroup.add(hospMesh);
+    const safeBldgGeo = new THREE.BoxGeometry(28, sy, 28);
+    const safeBldgMesh = new THREE.Mesh(safeBldgGeo, new THREE.MeshStandardMaterial({ map: hospTexture, roughness: 0.3, metalness: 0.4 }));
+    safeBldgMesh.position.y = sy / 2;
+    safeBldgMesh.castShadow = true;
+    safeZoneGroup.add(safeBldgMesh);
 
     const helipad = new THREE.Mesh(new THREE.BoxGeometry(16, 0.4, 16), new THREE.MeshStandardMaterial({ map: helipadTexture, roughness: 0.7 }));
-    helipad.position.set(0, 18.2, 0);
-    hospGroup.add(helipad);
+    helipad.position.set(0, sy + 0.2, 0);
+    safeZoneGroup.add(helipad);
 
     const crossH = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 3.5), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
     const crossV = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.6, 12), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
-    crossH.position.set(-6, 18.6, -6);
-    crossV.position.set(-6, 18.6, -6);
-    hospGroup.add(crossH);
-    hospGroup.add(crossV);
+    crossH.position.set(-6, sy + 0.6, -6);
+    crossV.position.set(-6, sy + 0.6, -6);
+    safeZoneGroup.add(crossH);
+    safeZoneGroup.add(crossV);
 
-    buildingsGroup.add(hospGroup);
+    buildingsGroup.add(safeZoneGroup);
 
-    // 10. DYNAMIC HAZARD VOLUMES
+    // 10. DYNAMIC HAZARD VOLUMES (Spawned at exact disaster incident coordinates)
     if (activeDisaster === 'FLOOD') {
       const floodGeo = new THREE.BoxGeometry(190, 4.5, 190);
       const floodMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.9 });
       const floodMesh = new THREE.Mesh(floodGeo, floodMat);
-      floodMesh.position.set(-10, 2.25, 10);
+      floodMesh.position.set(ix, 2.25, iz);
       scene.add(floodMesh);
       hazardVolumeRef.current = floodMesh;
     } else if (activeDisaster === 'WILDFIRE') {
       const fireGeo = new THREE.CylinderGeometry(25, 35, 18, 32);
       const fireMat = new THREE.MeshStandardMaterial({ color: 0xef4444, transparent: true, opacity: 0.45, emissive: 0xd97706, emissiveIntensity: 0.8 });
       const fireMesh = new THREE.Mesh(fireGeo, fireMat);
-      fireMesh.position.set(-15, 9, 10);
+      fireMesh.position.set(ix, 9, iz);
       scene.add(fireMesh);
       hazardVolumeRef.current = fireMesh;
     } else if (activeDisaster === 'CHEMICAL_HAZMAT') {
       const gasGeo = new THREE.SphereGeometry(26, 24, 24);
       const gasMat = new THREE.MeshStandardMaterial({ color: 0x10b981, transparent: true, opacity: 0.4, emissive: 0x22c55e, emissiveIntensity: 0.6 });
       const gasMesh = new THREE.Mesh(gasGeo, gasMat);
-      gasMesh.position.set(-15, 12, 10);
+      gasMesh.position.set(ix, 12, iz);
       scene.add(gasMesh);
       hazardVolumeRef.current = gasMesh;
     } else if (activeDisaster === 'LANDSLIDE') {
       const mudGeo = new THREE.ConeGeometry(30, 20, 16);
       const mudMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
       const mudMesh = new THREE.Mesh(mudGeo, mudMat);
-      mudMesh.position.set(-5, 8, -10);
+      mudMesh.position.set(ix, 8, iz);
       mudMesh.rotation.z = Math.PI * 0.3;
       scene.add(mudMesh);
       hazardVolumeRef.current = mudMesh;
@@ -840,15 +879,15 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     scene.add(particles);
     particleSystemRef.current = particles;
 
-    // 12. 3D HUMAN STRANDED VICTIMS
+    // 12. 3D HUMAN STRANDED VICTIMS AT EXACT INCIDENT LOCATION (ix, iy, iz)
     const peopleStuckGroup = new THREE.Group();
     scene.add(peopleStuckGroup);
 
     const shirtColors = [0xf59e0b, 0x38bdf8, 0xef4444, 0x10b981, 0xa855f7, 0xf97316, 0xec4899];
 
     for (let p = 0; p < 14; p++) {
-      const px = -18 + (p % 4) * 2.2 - 3.3;
-      const pz = 12 + Math.floor(p / 4) * 2.2 - 3.3;
+      const px = ix + (p % 4) * 2.2 - 3.3;
+      const pz = iz + Math.floor(p / 4) * 2.2 - 3.3;
       const isInjured = p === 0 || p === 1;
 
       const humanFigure = createHumanFigure({
@@ -859,7 +898,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         scale: 1.0
       });
 
-      humanFigure.position.set(px, 12, pz);
+      humanFigure.position.set(px, iy, pz);
       peopleStuckGroup.add(humanFigure);
     }
 
@@ -868,31 +907,28 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
     );
     sosRing.rotation.x = -Math.PI / 2;
-    sosRing.position.set(-18, 15.5, 12);
+    sosRing.position.set(ix, iy + 3.5, iz);
     peopleStuckGroup.add(sosRing);
 
-    // 13. RESCUE ROUTE SPLINE
+    // 13. DYNAMIC 3D RESCUE ROUTE SPLINE CONNECTING BASE -> INCIDENT -> SAFEZONE
     let routePointsList: THREE.Vector3[] = [];
 
     if (selectedPossibilityIndex === 1 || activeDisaster === 'WILDFIRE' || activeDisaster === 'LANDSLIDE') {
       const heloCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(20, 35, -40),
-        new THREE.Vector3(5, 38, -15),
-        new THREE.Vector3(-18, 30, 12),
-        new THREE.Vector3(-18, 24, 12),
-        new THREE.Vector3(20, 35, -20),
-        new THREE.Vector3(50, 22, -45)
+        new THREE.Vector3(0, 35, -40),
+        new THREE.Vector3((ix + 0) / 2, 38, (iz - 40) / 2),
+        new THREE.Vector3(ix, iy + 14, iz),
+        new THREE.Vector3((ix + sx) / 2, 32, (iz + sz) / 2),
+        new THREE.Vector3(sx, sy + 6, sz)
       ]);
       routePointsList = heloCurve.getPoints(80);
     } else {
       const surfaceCurve = new THREE.CatmullRomCurve3([
         new THREE.Vector3(0, 3, -40),
-        new THREE.Vector3(0, 3, -15),
-        new THREE.Vector3(-10, 3.5, 0),
-        new THREE.Vector3(-18, 4, 8),
-        new THREE.Vector3(-18, 12, 12),
-        new THREE.Vector3(15, 6, -10),
-        new THREE.Vector3(50, 10, -45)
+        new THREE.Vector3((ix + 0) / 2, 3.5, (iz - 40) / 2),
+        new THREE.Vector3(ix, iy, iz),
+        new THREE.Vector3((ix + sx) / 2, 5, (iz + sz) / 2),
+        new THREE.Vector3(sx, sy, sz)
       ]);
       routePointsList = surfaceCurve.getPoints(80);
     }
@@ -913,7 +949,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     const winchGeo = new THREE.CylinderGeometry(0.25, 0.25, 12, 16);
     const winchMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
     const winchBeam = new THREE.Mesh(winchGeo, winchMat);
-    winchBeam.position.set(-18, 18, 12);
+    winchBeam.position.set(ix, iy + 6, iz);
     scene.add(winchBeam);
     rescueBeamRef.current = winchBeam;
 
@@ -970,14 +1006,13 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
       cameraRef.current.position.x += deltaX * 0.2;
       cameraRef.current.position.y = Math.max(15, Math.min(120, cameraRef.current.position.y - deltaY * 0.2));
-      cameraRef.current.lookAt(-5, 8, 0);
+      cameraRef.current.lookAt(ix, iy, iz);
 
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
 
     const onMouseUp = () => { isDragging = false; };
 
-    // Mobile Touch
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 1) {
         isDragging = true;
@@ -992,7 +1027,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
       cameraRef.current.position.x += deltaX * 0.3;
       cameraRef.current.position.y = Math.max(15, Math.min(120, cameraRef.current.position.y - deltaY * 0.3));
-      cameraRef.current.lookAt(-5, 8, 0);
+      cameraRef.current.lookAt(ix, iy, iz);
 
       previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
@@ -1036,9 +1071,9 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         const heloMesh = vehicleGroupRef.current.children[1];
 
         if (selectedPossibilityIndex === 1 || activeDisaster === 'WILDFIRE' || activeDisaster === 'LANDSLIDE') {
-          heloMesh.position.x = -18 + Math.sin(elapsedTime * 0.8) * 35;
-          heloMesh.position.z = 12 + Math.cos(elapsedTime * 0.8) * 35;
-          heloMesh.position.y = 30 + Math.sin(elapsedTime * 2) * 2;
+          heloMesh.position.x = ix + Math.sin(elapsedTime * 0.8) * 30;
+          heloMesh.position.z = iz + Math.cos(elapsedTime * 0.8) * 30;
+          heloMesh.position.y = iy + 16 + Math.sin(elapsedTime * 2) * 2;
           boatMesh.position.set(0, 3, -40);
         } else {
           boatMesh.position.z = -20 + Math.sin(elapsedTime * 0.6) * 25;
@@ -1084,20 +1119,23 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
   const handleFocusStrandedPeople = () => {
     if (!cameraRef.current) return;
-    cameraRef.current.position.set(-28, 22, 28);
-    cameraRef.current.lookAt(-18, 12, 12);
+    const [ix, iy, iz] = currentDisaster.incidentPos;
+    const [cpx, cpy, cpz] = currentDisaster.cameraIncidentPos;
+    cameraRef.current.position.set(cpx, cpy, cpz);
+    cameraRef.current.lookAt(ix, iy, iz);
   };
 
   const handleFocusHospital = () => {
     if (!cameraRef.current) return;
-    cameraRef.current.position.set(35, 30, -25);
-    cameraRef.current.lookAt(50, 12, -45);
+    const [sx, sy, sz] = currentDisaster.safeZonePos;
+    cameraRef.current.position.set(sx - 15, sy + 15, sz + 20);
+    cameraRef.current.lookAt(sx, sy, sz);
   };
 
   const handleResetCamera = () => {
     if (!cameraRef.current) return;
     cameraRef.current.position.set(-25, 55, 85);
-    cameraRef.current.lookAt(-5, 8, 0);
+    cameraRef.current.lookAt(0, 0, 0);
   };
 
   return (
@@ -1128,7 +1166,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
                 </span>
               </h1>
               <p className="text-[9px] text-slate-400 font-mono line-clamp-1">
-                {currentDisaster.scenarioTitle}
+                📍 {currentDisaster.incidentLandmark}
               </p>
             </div>
           </div>
@@ -1158,7 +1196,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
         </div>
 
-        {/* Bottom Row: 6 Disaster Icon Switchers (Horizontal Scroll) */}
+        {/* Bottom Row: 6 Disaster Icon Switchers */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs scrollbar-none">
           {(Object.keys(DISASTER_CONFIGS) as DisasterCategory[]).map(dKey => {
             const d = DISASTER_CONFIGS[dKey];
@@ -1197,6 +1235,13 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
               {currentOption.actionStatus}
             </span>
           </div>
+        </div>
+
+        {/* Dynamic Location Pin Badge at Bottom Right */}
+        <div className="absolute bottom-2 right-2 z-10 pointer-events-none">
+          <span className="text-[9px] font-mono text-amber-400 bg-slate-950/80 px-2 py-0.5 rounded border border-amber-500/40">
+            📍 {currentDisaster.incidentLandmark}
+          </span>
         </div>
 
         {/* Gesture Hint at Bottom Left */}
@@ -1238,7 +1283,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Casualty & Hazards</span>
+              <span>Location & Threat</span>
             </button>
           </div>
 
@@ -1312,15 +1357,17 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
                 <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-[10px]">CRITICAL</span>
               </div>
               <p className="text-slate-300 text-[11px]">
+                📍 <strong>Danger Location:</strong> {currentDisaster.incidentLandmark}
+              </p>
+              <p className="text-slate-300 text-[11px]">
                 👥 <strong>Casualties:</strong> {currentDisaster.casualtySummary}
               </p>
               <p className="text-slate-300 text-[11px]">
-                ⚠️ <strong>Hazards:</strong> {currentDisaster.hazardDescription}
+                🛡️ <strong>Safe Shelter:</strong> {currentDisaster.safeZoneName}
               </p>
-              <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono pt-1">
-                <span>📍 Sector: Old Bridge Pillar</span>
-                <span>Safe Shelter: 🏥 Hospital Landmark</span>
-              </div>
+              <p className="text-slate-300 text-[11px]">
+                ⚠️ <strong>Threat:</strong> {currentDisaster.hazardDescription}
+              </p>
             </div>
           </div>
         )}
