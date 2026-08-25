@@ -42,6 +42,7 @@ import { IncidentDigitalTwinModal } from './IncidentDigitalTwinModal';
 import { TacticalMapWorkspace } from './TacticalMapWorkspace';
 import { WhatIfSimulatorModal } from './WhatIfSimulatorModal';
 import { ExplainableAiModal } from './ExplainableAiModal';
+import { RescuerLiveGpsModal } from './RescuerLiveGpsModal';
 
 export const CommanderDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -65,6 +66,8 @@ export const CommanderDashboard: React.FC = () => {
   // Selected Packet Modals
   const [actNowPacket, setActNowPacket] = useState<EmergencyPacket | null>(null);
   const [digitalTwinPacket, setDigitalTwinPacket] = useState<EmergencyPacket | null>(null);
+  const [selectedGpsPacket, setSelectedGpsPacket] = useState<EmergencyPacket | null>(null);
+  const [isLiveGpsModalOpen, setIsLiveGpsModalOpen] = useState(false);
   const [xaiPacket, setXaiPacket] = useState<EmergencyPacket | null>(null);
   const [isXaiOpen, setIsXaiOpen] = useState(false);
   const [isWhatIfOpen, setIsWhatIfOpen] = useState(false);
@@ -266,10 +269,10 @@ export const CommanderDashboard: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
-              <span className="text-amber-400 font-bold block">⚠ 2 Unassigned Incidents</span>
-              <p className="text-[11px] text-slate-300">Flood depth &gt; 4ft requiring motorized rafts.</p>
-            </div>
+          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <span className="text-amber-400 font-bold block">⚠ 2 Unassigned Incidents</span>
+            <p className="text-[11px] text-slate-300">Flood depth &gt; 4ft requiring motorized rafts.</p>
+          </div>
           <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
             <span className="text-blue-400 font-bold block">⚠ Team Bravo Available</span>
             <p className="text-[11px] text-slate-300">Zodiac boat unit is 2.4km from Old Bridge.</p>
@@ -376,7 +379,10 @@ export const CommanderDashboard: React.FC = () => {
                   key={inc.incidentId}
                   className="p-4 sm:p-5 rounded-3xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl"
                 >
-                  <div className="space-y-2 flex-1">
+                  <div 
+                    onClick={() => setActNowPacket(inc)}
+                    className="space-y-2 flex-1 cursor-pointer"
+                  >
                     
                     {/* Top Row Badges */}
                     <div className="flex items-center gap-2 flex-wrap">
@@ -396,8 +402,9 @@ export const CommanderDashboard: React.FC = () => {
                         {inc.incidentCategoryLabel} ({inc.peopleCount} {inc.peopleCount === 1 ? 'Person' : 'People'})
                       </span>
                       {inc.assignedTeamName ? (
-                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
-                          🚒 Assigned: {inc.assignedTeamName}
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold flex items-center gap-1">
+                          <Navigation className="w-3 h-3 text-emerald-400" />
+                          <span>Assigned: {inc.assignedTeamName}</span>
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 text-[10px] font-mono font-bold">
@@ -425,8 +432,19 @@ export const CommanderDashboard: React.FC = () => {
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     
                     <button
+                      onClick={() => {
+                        setSelectedGpsPacket(inc);
+                        setIsLiveGpsModalOpen(true);
+                      }}
+                      className="px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg active:scale-95 transition flex items-center gap-1.5"
+                    >
+                      <Navigation className="w-4 h-4 animate-spin" />
+                      <span>LIVE GPS TRACK</span>
+                    </button>
+
+                    <button
                       onClick={() => setActNowPacket(inc)}
-                      className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg active:scale-95 transition flex items-center gap-1.5"
+                      className="px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg active:scale-95 transition flex items-center gap-1.5"
                     >
                       <AlertOctagon className="w-4 h-4" />
                       <span>ACT NOW</span>
@@ -434,11 +452,10 @@ export const CommanderDashboard: React.FC = () => {
 
                     <button
                       onClick={() => setDigitalTwinPacket(inc)}
-                      className="px-3.5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-purple-300 font-bold text-xs transition flex items-center gap-1"
+                      className="px-3 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-purple-300 font-bold text-xs transition flex items-center gap-1"
                       title="View Digital Twin"
                     >
                       <Activity className="w-4 h-4" />
-                      <span className="hidden sm:inline">Digital Twin</span>
                     </button>
 
                   </div>
@@ -455,6 +472,13 @@ export const CommanderDashboard: React.FC = () => {
       {/* 5. MODALS & POPUPS                                       */}
       {/* ======================================================== */}
       
+      {/* Rescuer Live GPS Tracker Modal */}
+      <RescuerLiveGpsModal
+        packet={selectedGpsPacket}
+        isOpen={isLiveGpsModalOpen}
+        onClose={() => setIsLiveGpsModalOpen(false)}
+      />
+
       {/* Act Now Modal */}
       <ActNowModal
         packet={actNowPacket}
@@ -463,6 +487,10 @@ export const CommanderDashboard: React.FC = () => {
         onAssignTeam={(id, teamId, name) => assignTeam(id, teamId, name)}
         onUpdateStatus={(id, status) => updateIncidentStatus(id, status)}
         onOpenDigitalTwin={(pkt) => setDigitalTwinPacket(pkt)}
+        onOpenLiveGps={(pkt) => {
+          setSelectedGpsPacket(pkt);
+          setIsLiveGpsModalOpen(true);
+        }}
       />
 
       {/* Digital Twin Modal */}
