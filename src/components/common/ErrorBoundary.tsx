@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { ShieldAlert, RefreshCw } from 'lucide-react';
+import { AlertOctagon, RefreshCw } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Safety Dosth Uncaught error:', error, errorInfo);
+    console.error('DISASTER DHOST Uncaught error:', error, errorInfo);
   }
 
   private handleReload = () => {
@@ -34,21 +34,21 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-[100dvh] w-full bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center">
-          <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 shadow-xl space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto">
-              <ShieldAlert className="w-8 h-8" />
+        <div className="min-h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-center p-6 text-center text-slate-100">
+          <div className="max-w-md w-full bg-slate-900 rounded-3xl border border-red-500/40 p-8 shadow-2xl space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/40 flex items-center justify-center mx-auto">
+              <AlertOctagon className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-black text-slate-900">Safety Dosth Companion</h2>
-            <p className="text-xs text-slate-500">
-              A temporary initialization issue occurred. Tap below to reload your safety session.
+            <h2 className="text-xl font-black text-white">DISASTER DHOST System</h2>
+            <p className="text-xs text-slate-400">
+              A temporary initialization issue occurred. Tap below to reload your emergency session.
             </p>
             <button
               onClick={this.handleReload}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 transition"
+              className="w-full py-3.5 bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 transition"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Reload Safety Companion</span>
+              <span>Reload Emergency Engine</span>
             </button>
           </div>
         </div>
