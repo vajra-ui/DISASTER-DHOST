@@ -29,7 +29,8 @@ import {
   Brain, 
   Sliders, 
   Plane, 
-  AlertTriangle 
+  AlertTriangle,
+  Building2
 } from 'lucide-react';
 import { EmergencyPacket, IncidentPriority } from '../../types/dhostAuth';
 import { DEPLOYED_RESCUE_TEAMS } from '../../services/aiTriageService';
@@ -52,6 +53,90 @@ export interface RescuePossibility {
   pros: string[];
   cons: string[];
   actionStatus: string;
+}
+
+/**
+ * Generates Procedural Realistic Building Facade Textures
+ */
+function createFacadeTexture(type: 'OFFICE' | 'APARTMENT' | 'HOSPITAL'): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.CanvasTexture(canvas);
+
+  // Facade Concrete/Steel Background
+  ctx.fillStyle = type === 'HOSPITAL' ? '#1e293b' : '#0f172a';
+  ctx.fillRect(0, 0, 512, 512);
+
+  const rows = 8;
+  const cols = 8;
+  const rowHeight = 512 / rows;
+  const colWidth = 512 / cols;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = c * colWidth + 8;
+      const y = r * rowHeight + 8;
+      const w = colWidth - 16;
+      const h = rowHeight - 16;
+
+      // Window Frame Mullion
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+
+      // Window Glass with Illumination
+      const isLit = (r + c * 3) % 3 !== 0;
+      if (isLit) {
+        ctx.fillStyle = type === 'HOSPITAL' ? '#38bdf8' : (r % 2 === 0 ? '#fef08a' : '#93c5fd');
+      } else {
+        ctx.fillStyle = '#020617';
+      }
+      ctx.fillRect(x, y, w, h);
+
+      // Glass Reflection Streak
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w * 0.45, y);
+      ctx.lineTo(x, y + h * 0.55);
+      ctx.fill();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
+/**
+ * Generates Procedural Hospital Helipad Texture
+ */
+function createHelipadTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.CanvasTexture(canvas);
+
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 0, 256, 256);
+
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.arc(128, 128, 90, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 110px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('H', 128, 128);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  return texture;
 }
 
 /**
@@ -177,23 +262,11 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   const [selectedPossibility, setSelectedPossibility] = useState<'ZODIAC_BOAT' | 'HELO_WINCH' | 'TACTICAL_TRUCK'>('ZODIAC_BOAT');
   const [isAiPossibilitiesOpen, setIsAiPossibilitiesOpen] = useState(true);
 
-  // Rescue Extraction Simulation State
-  const [isRescueSimulating, setIsRescueSimulating] = useState(true); // Auto-action on possibility click
-  const [rescueStep, setRescueStep] = useState(1);
-  const [rescueCompleted, setRescueCompleted] = useState(false);
+  // Action Status
   const [actionNarrative, setActionNarrative] = useState('Demonstrating Zodiac Boat Deep Channel Extraction (94% Feasibility)...');
 
-  // Timeline & Simulation
-  const [timelineIndex, setTimelineIndex] = useState(2);
-  const [isPlayingTimeline, setIsPlayingTimeline] = useState(false);
-
-  // Layer Toggles
-  const [layerBuildings, setLayerBuildings] = useState(true);
-  const [layerFlood, setLayerFlood] = useState(true);
-  const [layerPeopleStuck, setLayerPeopleStuck] = useState(true);
-
   // Focus View Mode
-  const [focusMode, setFocusMode] = useState<'OVERVIEW' | 'STRANDED_PEOPLE' | 'RESCUE_ROUTE'>('OVERVIEW');
+  const [focusMode, setFocusMode] = useState<'OVERVIEW' | 'STRANDED_PEOPLE' | 'HOSPITAL'>('OVERVIEW');
 
   // References for Three.js Scene Updates
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -264,7 +337,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     // 1. Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020617);
-    scene.fog = new THREE.FogExp2(0x020617, 0.007);
+    scene.fog = new THREE.FogExp2(0x020617, 0.006);
     sceneRef.current = scene;
 
     // 2. Camera
@@ -280,15 +353,15 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.25;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     // 4. Lighting
-    const ambientLight = new THREE.AmbientLight(0x1e293b, 2.0);
+    const ambientLight = new THREE.AmbientLight(0x1e293b, 2.2);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.6);
+    const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.8);
     dirLight.position.set(40, 80, 50);
     dirLight.castShadow = true;
     scene.add(dirLight);
@@ -297,96 +370,207 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     amberLight.position.set(-18, 25, 10);
     scene.add(amberLight);
 
-    const victimRedLight = new THREE.PointLight(0xef4444, 5, 40);
+    const victimRedLight = new THREE.PointLight(0xef4444, 6, 50);
     victimRedLight.position.set(-18, 16, 12);
     scene.add(victimRedLight);
 
     // 5. Tactical Ground Plane Grid
-    const groundGeo = new THREE.PlaneGeometry(260, 260);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.9, metalness: 0.1 });
+    const groundGeo = new THREE.PlaneGeometry(280, 280);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x070b14, roughness: 0.9, metalness: 0.1 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const gridHelper = new THREE.GridHelper(260, 52, 0x1e293b, 0x0f172a);
+    const gridHelper = new THREE.GridHelper(280, 56, 0x1e293b, 0x0f172a);
     gridHelper.position.y = 0.05;
     scene.add(gridHelper);
 
-    // 6. River & 3D Bridge
-    const riverGeo = new THREE.PlaneGeometry(45, 260);
-    const riverMat = new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.1, metalness: 0.85, transparent: true, opacity: 0.85 });
+    // 6. River & 3D Bridge with Pylons
+    const riverGeo = new THREE.PlaneGeometry(45, 280);
+    const riverMat = new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.1, metalness: 0.85, transparent: true, opacity: 0.88 });
     const river = new THREE.Mesh(riverGeo, riverMat);
     river.rotation.x = -Math.PI / 2;
     river.position.set(0, 0.1, 0);
     scene.add(river);
 
-    const bridgeGeo = new THREE.BoxGeometry(18, 2.5, 70);
-    const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+    // 3D Bridge Arch with Guard Rails
+    const bridgeGeo = new THREE.BoxGeometry(18, 2.5, 75);
+    const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
     const bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
     bridge.position.set(0, 2.5, 0);
+    bridge.castShadow = true;
     scene.add(bridge);
 
-    // 7. Procedural 3D Buildings
+    // Bridge Guardrails
+    const railMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+    const railL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 75), railMat);
+    const railR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 75), railMat);
+    railL.position.set(-8.8, 4.0, 0);
+    railR.position.set(8.8, 4.0, 0);
+    scene.add(railL);
+    scene.add(railR);
+
+    // -------------------------------------------------------------
+    // 7. HIGH-REALISM PROCEDURAL 3D BUILDINGS WITH TEXTURES & DETAILS
+    // -------------------------------------------------------------
     const buildingsGroup = new THREE.Group();
     scene.add(buildingsGroup);
 
-    const buildingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8, metalness: 0.2 });
-    const hospitalMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.3 });
+    const officeTexture = createFacadeTexture('OFFICE');
+    const aptTexture = createFacadeTexture('APARTMENT');
+    const hospTexture = createFacadeTexture('HOSPITAL');
+    const helipadTexture = createHelipadTexture();
 
-    for (let x = -80; x <= 80; x += 24) {
-      for (let z = -80; z <= 80; z += 24) {
-        if (Math.abs(x) < 24) continue;
-        const bHeight = Math.random() * 14 + 6;
-        const bGeo = new THREE.BoxGeometry(15, bHeight, 15);
-        const bMesh = new THREE.Mesh(bGeo, buildingMat);
-        bMesh.position.set(x + (Math.random() * 4 - 2), bHeight / 2, z + (Math.random() * 4 - 2));
+    const officeMat = new THREE.MeshStandardMaterial({ map: officeTexture, roughness: 0.4, metalness: 0.3 });
+    const aptMat = new THREE.MeshStandardMaterial({ map: aptTexture, roughness: 0.6, metalness: 0.2 });
+    const concreteMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+    const hvacMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.3, metalness: 0.6 });
+
+    // Procedural City Skyline
+    for (let x = -90; x <= 90; x += 26) {
+      for (let z = -90; z <= 90; z += 26) {
+        if (Math.abs(x) < 24) continue; // River corridor
+        if (x >= 35 && z <= -30) continue; // Hospital reserve
+        if (x <= -10 && x >= -28 && z >= 0 && z <= 24) continue; // Stranded Bldg reserve
+
+        const bHeight = Math.floor(Math.random() * 16) + 8;
+        const bWidth = Math.floor(Math.random() * 4) + 14;
+        const bDepth = Math.floor(Math.random() * 4) + 14;
+        const bMat = (x + z) % 2 === 0 ? officeMat : aptMat;
+
+        // Main Tower Structure
+        const bGeo = new THREE.BoxGeometry(bWidth, bHeight, bDepth);
+        const bMesh = new THREE.Mesh(bGeo, bMat);
+        bMesh.position.set(x, bHeight / 2, z);
         bMesh.castShadow = true;
+        bMesh.receiveShadow = true;
         buildingsGroup.add(bMesh);
 
-        const edges = new THREE.EdgesGeometry(bGeo);
-        const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.15 });
-        const wireframe = new THREE.LineSegments(edges, lineMat);
-        wireframe.position.copy(bMesh.position);
-        buildingsGroup.add(wireframe);
+        // Rooftop Parapet Perimeter Safety Wall
+        const parapetMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+        const parapet = new THREE.Mesh(new THREE.BoxGeometry(bWidth + 0.3, 0.8, bDepth + 0.3), parapetMat);
+        parapet.position.set(x, bHeight + 0.4, z);
+        buildingsGroup.add(parapet);
+
+        // Rooftop HVAC Equipment Box
+        const hvac = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.8, 3.5), hvacMat);
+        hvac.position.set(x + (Math.random() * 3 - 1.5), bHeight + 1.2, z + (Math.random() * 3 - 1.5));
+        buildingsGroup.add(hvac);
+
+        // Rooftop Elevator Penthouse Bulkhead
+        const bulkhead = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.5, 4.5), concreteMat);
+        bulkhead.position.set(x - 2, bHeight + 1.5, z - 2);
+        buildingsGroup.add(bulkhead);
+
+        // Tall Antenna Mast with Blinking Red Light on High-Rises
+        if (bHeight > 18) {
+          const mastGeo = new THREE.CylinderGeometry(0.15, 0.25, 8, 8);
+          const mastMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8 });
+          const mast = new THREE.Mesh(mastGeo, mastMat);
+          mast.position.set(x, bHeight + 5.5, z);
+          buildingsGroup.add(mast);
+
+          const redBeacon = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+          redBeacon.position.set(x, bHeight + 9.5, z);
+          buildingsGroup.add(redBeacon);
+        }
       }
     }
 
-    // Stranded Building
-    const strandedBldgGeo = new THREE.BoxGeometry(18, 12, 18);
-    const strandedBldgMat = new THREE.MeshStandardMaterial({ color: 0x273549, roughness: 0.7 });
-    const strandedBldg = new THREE.Mesh(strandedBldgGeo, strandedBldgMat);
-    strandedBldg.position.set(-18, 6, 12);
-    strandedBldg.castShadow = true;
-    buildingsGroup.add(strandedBldg);
+    // -------------------------------------------------------------
+    // 8. REALISTIC DETAILED FLOODED COMMERCIAL COMPLEX (STRANDED VICTIMS)
+    // -------------------------------------------------------------
+    const strandedBldgGroup = new THREE.Group();
+    strandedBldgGroup.position.set(-18, 0, 12);
 
-    // Hospital Safe Zone
-    const hospGeo = new THREE.BoxGeometry(26, 18, 26);
-    const hospMesh = new THREE.Mesh(hospGeo, hospitalMat);
-    hospMesh.position.set(50, 9, -45);
+    // 4-Story Commercial Facade Tower
+    const strandedGeo = new THREE.BoxGeometry(20, 12, 20);
+    const strandedMat = new THREE.MeshStandardMaterial({ map: officeTexture, roughness: 0.4, metalness: 0.3 });
+    const strandedMesh = new THREE.Mesh(strandedGeo, strandedMat);
+    strandedMesh.position.y = 6;
+    strandedMesh.castShadow = true;
+    strandedMesh.receiveShadow = true;
+    strandedBldgGroup.add(strandedMesh);
+
+    // Rooftop Safety Parapet Wall (Hollow Roof Area for Victims)
+    const roofParapetMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+    const roofParapet = new THREE.Mesh(new THREE.BoxGeometry(20.4, 0.9, 20.4), roofParapetMat);
+    roofParapet.position.y = 12.45;
+    strandedBldgGroup.add(roofParapet);
+
+    // Rooftop HVAC Chillers & Industrial Fan Vent
+    const chiller1 = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.0, 3.2), hvacMat);
+    chiller1.position.set(-5, 13.0, -5);
+    strandedBldgGroup.add(chiller1);
+
+    const chiller2 = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.8, 3.0), hvacMat);
+    chiller2.position.set(5, 12.9, -5);
+    strandedBldgGroup.add(chiller2);
+
+    // Rooftop Access Door Penthouse
+    const roofDoorPenthouse = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.8, 4.5), concreteMat);
+    roofDoorPenthouse.position.set(-5, 13.4, 4);
+    strandedBldgGroup.add(roofDoorPenthouse);
+
+    // Water Storage Tank on Roof Stilts
+    const tankGeo = new THREE.CylinderGeometry(1.8, 1.8, 2.5, 16);
+    const tankMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.4 });
+    const tank = new THREE.Mesh(tankGeo, tankMat);
+    tank.position.set(5.5, 14.0, 4);
+    strandedBldgGroup.add(tank);
+
+    buildingsGroup.add(strandedBldgGroup);
+
+    // -------------------------------------------------------------
+    // 9. REALISTIC GOVT HOSPITAL & RELIEF SHELTER (SAFE ZONE)
+    // -------------------------------------------------------------
+    const hospGroup = new THREE.Group();
+    hospGroup.position.set(50, 0, -45);
+
+    // Main Hospital Glass Facade Block
+    const hospGeo = new THREE.BoxGeometry(30, 18, 30);
+    const hospMesh = new THREE.Mesh(hospGeo, new THREE.MeshStandardMaterial({ map: hospTexture, roughness: 0.3, metalness: 0.4 }));
+    hospMesh.position.y = 9;
     hospMesh.castShadow = true;
-    buildingsGroup.add(hospMesh);
+    hospGroup.add(hospMesh);
 
-    // Hospital Cross
-    const crossGeoH = new THREE.BoxGeometry(10, 0.5, 3);
-    const crossGeoV = new THREE.BoxGeometry(3, 0.5, 10);
+    // Hospital Helipad on Roof (with Authentic 'H' and lights)
+    const helipadGeo = new THREE.BoxGeometry(16, 0.4, 16);
+    const helipadMat = new THREE.MeshStandardMaterial({ map: helipadTexture, roughness: 0.7 });
+    const helipad = new THREE.Mesh(helipadGeo, helipadMat);
+    helipad.position.set(0, 18.2, 0);
+    hospGroup.add(helipad);
+
+    // Glowing Green Medical Cross on Roof
+    const crossGeoH = new THREE.BoxGeometry(12, 0.6, 3.5);
+    const crossGeoV = new THREE.BoxGeometry(3.5, 0.6, 12);
     const crossMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
     const crossH = new THREE.Mesh(crossGeoH, crossMat);
     const crossV = new THREE.Mesh(crossGeoV, crossMat);
-    crossH.position.set(50, 18.3, -45);
-    crossV.position.set(50, 18.3, -45);
-    buildingsGroup.add(crossH);
-    buildingsGroup.add(crossV);
+    crossH.position.set(-6, 18.6, -6);
+    crossV.position.set(-6, 18.6, -6);
+    hospGroup.add(crossH);
+    hospGroup.add(crossV);
 
-    // 8. 3D Water Flood Inundation Volume
-    const waterGeo = new THREE.BoxGeometry(180, 4.5, 180);
-    const waterVolumeMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, transparent: true, opacity: 0.5, roughness: 0.1, metalness: 0.9 });
+    // Hospital Ground-Level Ambulance & Triage Bay Canopy
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(14, 1.0, 8), new THREE.MeshStandardMaterial({ color: 0x38bdf8 }));
+    canopy.position.set(0, 4.5, 17);
+    hospGroup.add(canopy);
+
+    buildingsGroup.add(hospGroup);
+
+    // 10. 3D Water Flood Inundation Volume
+    const waterGeo = new THREE.BoxGeometry(190, 4.5, 190);
+    const waterVolumeMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.9 });
     const waterVolume = new THREE.Mesh(waterGeo, waterVolumeMat);
     waterVolume.position.set(-10, 2.25, 10);
     scene.add(waterVolume);
     waterMeshRef.current = waterVolume;
 
-    // 9. 3D Human Victims on Rooftop
+    // -------------------------------------------------------------
+    // 11. 3D VISIBLE HUMAN STRANDED PEOPLE ON ROOFTOP
+    // -------------------------------------------------------------
     const peopleStuckGroup = new THREE.Group();
     peopleStuckGroupRef.current = peopleStuckGroup;
     scene.add(peopleStuckGroup);
@@ -426,10 +610,8 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     peopleStuckGroup.add(beam);
 
     // -------------------------------------------------------------
-    // 10. MULTI-MODAL 3D RESCUE TRAJECTORY SPLINES
+    // 12. MULTI-MODAL 3D RESCUE TRAJECTORY SPLINES
     // -------------------------------------------------------------
-    
-    // Spline 1: Zodiac Boat Waterway Spline (Green)
     const boatCurve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 3, -40),
       new THREE.Vector3(0, 3, -15),
@@ -447,14 +629,13 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     scene.add(boatSpline);
     boatSplineRef.current = boatSpline;
 
-    // Spline 2: Helo Aerial Spline (Amber / Yellow)
     const heloCurve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(20, 35, -40),
       new THREE.Vector3(5, 38, -15),
       new THREE.Vector3(-18, 30, 12),
-      new THREE.Vector3(-18, 24, 12), // Winch hover
+      new THREE.Vector3(-18, 24, 12),
       new THREE.Vector3(20, 35, -20),
-      new THREE.Vector3(50, 22, -45)  // Hospital Helipad
+      new THREE.Vector3(50, 22, -45)
     ]);
     const heloPoints = heloCurve.getPoints(80);
     const heloSplineGeo = new THREE.BufferGeometry().setFromPoints(heloPoints);
@@ -464,11 +645,10 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     scene.add(heloSpline);
     heloSplineRef.current = heloSpline;
 
-    // Spline 3: Truck Blocked Road Spline (Red Dashed)
     const truckCurve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(28, 1.5, 20),
       new THREE.Vector3(14, 1.8, 10),
-      new THREE.Vector3(0, 2.5, 0),   // Stalls at flooded bridge
+      new THREE.Vector3(0, 2.5, 0),
       new THREE.Vector3(-8, 3.2, 4)
     ]);
     const truckPoints = truckCurve.getPoints(40);
@@ -479,22 +659,22 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     scene.add(truckSpline);
     truckSplineRef.current = truckSpline;
 
-    // Extraction Winch Laser Beam
+    // Winch Beam
     const winchGeo = new THREE.CylinderGeometry(0.25, 0.25, 12, 16);
-    const winchMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0 });
+    const winchMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
     const winchBeam = new THREE.Mesh(winchGeo, winchMat);
     winchBeam.position.set(-18, 18, 12);
     scene.add(winchBeam);
     rescueBeamRef.current = winchBeam;
 
     // -------------------------------------------------------------
-    // 11. 3D RESCUE VEHICLES WITH VISIBLE RESCUER SQUADS
+    // 13. 3D RESCUE VEHICLES WITH VISIBLE RESCUER SQUADS
     // -------------------------------------------------------------
     const vehicleGroup = new THREE.Group();
     vehicleGroupRef.current = vehicleGroup;
     scene.add(vehicleGroup);
 
-    // Vehicle 1: Zodiac Boat (index 0)
+    // Zodiac Boat
     const boatContainer = new THREE.Group();
     const boatGeo = new THREE.BoxGeometry(4.8, 1.8, 8.5);
     const boatMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.3 });
@@ -512,7 +692,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     boatContainer.position.set(0, 3, -40);
     vehicleGroup.add(boatContainer);
 
-    // Vehicle 2: Helicopter Helo AIR-01 (index 1)
+    // Helicopter
     const heloContainer = new THREE.Group();
     const heloGeo = new THREE.BoxGeometry(4.5, 3.2, 9.5);
     const heloMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2 });
@@ -532,7 +712,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     heloContainer.position.set(20, 35, -40);
     vehicleGroup.add(heloContainer);
 
-    // Vehicle 3: Tactical 4x4 Truck (index 2)
+    // 4x4 Truck
     const truckContainer = new THREE.Group();
     const truckGeo = new THREE.BoxGeometry(4.5, 3.5, 7.5);
     const truckMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
@@ -546,7 +726,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     truckContainer.position.set(28, 1.5, 20);
     vehicleGroup.add(truckContainer);
 
-    // 12. Mouse & Touch Orbit Controls
+    // 14. Orbit Controls
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
 
@@ -598,7 +778,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     domElement.addEventListener('touchmove', onTouchMove);
     domElement.addEventListener('touchend', onTouchEnd);
 
-    // 13. Animation Loop
+    // 15. Animation Loop
     let animationFrameId: number;
     let clock = new THREE.Clock();
 
@@ -606,7 +786,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = clock.getElapsedTime();
 
-      // Water Animation
+      // Water Swell
       if (waterMeshRef.current) {
         waterMeshRef.current.position.y = 2.25 + Math.sin(elapsedTime * 1.5) * 0.25;
       }
@@ -630,7 +810,6 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         const heloMesh = vehicleGroupRef.current.children[1];
         const truckMesh = vehicleGroupRef.current.children[2];
 
-        // 1. ZODIAC BOAT OPTION
         if (selectedPossibility === 'ZODIAC_BOAT') {
           const t = (Math.sin(elapsedTime * 0.45) + 1) / 2;
           const pos = boatCurve.getPoint(t);
@@ -638,7 +817,6 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
           heloMesh.position.set(20, 35, -40);
           truckMesh.position.set(28, 1.5, 20);
 
-        // 2. HELO WINCH OPTION
         } else if (selectedPossibility === 'HELO_WINCH') {
           const t = (Math.sin(elapsedTime * 0.6) + 1) / 2;
           const pos = heloCurve.getPoint(t);
@@ -646,12 +824,10 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
           boatMesh.position.set(0, 3, -40);
           truckMesh.position.set(28, 1.5, 20);
 
-        // 3. TACTICAL TRUCK OPTION (STALLS AT WATER)
         } else if (selectedPossibility === 'TACTICAL_TRUCK') {
           const t = Math.min(0.85, (Math.sin(elapsedTime * 0.4) + 1) / 2);
           const pos = truckCurve.getPoint(t);
           truckMesh.position.copy(pos);
-          // Vibration stall jitter when hitting deep water
           if (t >= 0.7) {
             truckMesh.position.x += Math.sin(elapsedTime * 40) * 0.15;
           }
@@ -691,21 +867,16 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     };
   }, [selectedPossibility]);
 
-  // -------------------------------------------------------------
-  // POSSIBILITIES CLICK HANDLER (TRIGGERS 3D DEMO ACTION!)
-  // -------------------------------------------------------------
+  // Possibility Switcher
   const handleSelectPossibility = (optId: 'ZODIAC_BOAT' | 'HELO_WINCH' | 'TACTICAL_TRUCK') => {
     setSelectedPossibility(optId);
-    setRescueCompleted(false);
 
-    // Update visibility of splines
     if (boatSplineRef.current && heloSplineRef.current && truckSplineRef.current) {
       boatSplineRef.current.visible = (optId === 'ZODIAC_BOAT');
       heloSplineRef.current.visible = (optId === 'HELO_WINCH');
       truckSplineRef.current.visible = (optId === 'TACTICAL_TRUCK');
     }
 
-    // 1. ZODIAC BOAT: Glide to Water Surface Level
     if (optId === 'ZODIAC_BOAT') {
       setActionNarrative('Demonstrating Option A: Zodiac Boat Deep Channel Approach (94% Match)');
       if (cameraRef.current) {
@@ -715,9 +886,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       if (rescueBeamRef.current) {
         (rescueBeamRef.current.material as THREE.MeshBasicMaterial).opacity = 0.85;
       }
-    } 
-    // 2. HELO WINCH: High Altitude Chase Cam
-    else if (optId === 'HELO_WINCH') {
+    } else if (optId === 'HELO_WINCH') {
       setActionNarrative('Demonstrating Option B: Coast Guard Helo Air-1 High-Line Winch (78% Match)');
       if (cameraRef.current) {
         cameraRef.current.position.set(-5, 45, 35);
@@ -726,9 +895,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       if (rescueBeamRef.current) {
         (rescueBeamRef.current.material as THREE.MeshBasicMaterial).opacity = 0.95;
       }
-    } 
-    // 3. TACTICAL TRUCK: Track Bridge Road Attempt & Show Failure Alert
-    else if (optId === 'TACTICAL_TRUCK') {
+    } else if (optId === 'TACTICAL_TRUCK') {
       setActionNarrative('⚠️ Option C Action: 4x4 Truck attempts road crossing ➔ Stalls in 4.2ft water on bridge! AI warns high risk.');
       if (cameraRef.current) {
         cameraRef.current.position.set(15, 18, 25);
@@ -745,6 +912,13 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     if (!cameraRef.current) return;
     cameraRef.current.position.set(-28, 22, 28);
     cameraRef.current.lookAt(-18, 12, 12);
+  };
+
+  const handleFocusHospital = () => {
+    setFocusMode('HOSPITAL');
+    if (!cameraRef.current) return;
+    cameraRef.current.position.set(35, 30, -25);
+    cameraRef.current.lookAt(50, 12, -45);
   };
 
   const handleResetCamera = () => {
@@ -775,17 +949,17 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
           <div>
             <h1 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
               <span>DHOST 3D OPERATIONAL TWIN™</span>
-              <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold">
-                AI POSSIBILITIES ACTION DEMO
+              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
+                REALISTIC CITY + AI ACTION
               </span>
             </h1>
             <p className="text-[10px] text-slate-400 font-mono hidden md:block">
-              Click any AI Option below to demonstrate its real-time 3D rescue action!
+              Realistic Facades • Rooftop Parapets & HVAC • Illuminated Helipad • 14 Human Victims
             </p>
           </div>
         </div>
 
-        {/* Center: 3 AI Possibility Action Switchers (Direct 3D Action on Click!) */}
+        {/* Center: 3 AI Possibility Action Switchers */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs">
           
           <button
@@ -825,6 +999,13 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
           </button>
 
           <button
+            onClick={handleFocusHospital}
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-bold text-xs whitespace-nowrap"
+          >
+            🏥 Hospital Safe Zone
+          </button>
+
+          <button
             onClick={handleResetCamera}
             className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs whitespace-nowrap"
           >
@@ -833,10 +1014,10 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
         </div>
 
-        {/* Right: Quick Action Banner */}
+        {/* Right: Realistic Render Badge */}
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold border border-emerald-500/40 hidden sm:inline">
-            ● 3D ACTION LIVE
+            ● 60 FPS REALISTIC 3D
           </span>
         </div>
 
@@ -872,7 +1053,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
               </span>
             </div>
 
-            {/* Possibility Choice Buttons (Clicking triggers 3D Demo!) */}
+            {/* Possibility Choice Buttons */}
             <div className="space-y-1.5">
               {rescueOptions.map(opt => (
                 <div
@@ -984,7 +1165,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
                 "{selectedIncident.translatedText || selectedIncident.requestText}"
               </p>
               <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
-                <span>📍 3D Landmark: Rooftop Pillar (Old Bridge Sector)</span>
+                <span>📍 3D Landmark: Commercial Complex Rooftop</span>
                 <span>Active 3D Action: <strong className="text-emerald-400">{currentOption.vehicleName} ({currentOption.feasibilityScore}%)</strong></span>
                 <span>Mesh Route: <strong className="text-blue-400">3 Hops (LoRa 868MHz)</strong></span>
               </div>
