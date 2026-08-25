@@ -21,7 +21,11 @@ import {
   Clock, 
   CheckCircle2,
   X,
-  Plus
+  Plus,
+  LifeBuoy,
+  Heart,
+  ChevronRight,
+  ShieldCheck
 } from 'lucide-react';
 import { EmergencyPacket, IncidentPriority } from '../../types/dhostAuth';
 import { DEPLOYED_RESCUE_TEAMS } from '../../services/aiTriageService';
@@ -43,6 +47,11 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   const [selectedIncident, setSelectedIncident] = useState<EmergencyPacket | null>(incidents[0] || null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   
+  // Rescue Extraction Simulation State
+  const [isRescueSimulating, setIsRescueSimulating] = useState(false);
+  const [rescueStep, setRescueStep] = useState(1); // 1: APPROACH, 2: WINCH/EXTRACTION, 3: STABILIZE, 4: SAFE EVACUATION
+  const [rescueCompleted, setRescueCompleted] = useState(false);
+
   // Timeline & Simulation
   const [timelineIndex, setTimelineIndex] = useState(2); // 0=22:00, 1=22:15, 2=22:30 (Live), 3=22:45, 4=+15m, 5=+30m
   const [isPlayingTimeline, setIsPlayingTimeline] = useState(false);
@@ -52,13 +61,13 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   // Layer Toggles
   const [layerBuildings, setLayerBuildings] = useState(true);
   const [layerFlood, setLayerFlood] = useState(true);
-  const [layerIncidents, setLayerIncidents] = useState(true);
-  const [layerTeams, setLayerTeams] = useState(true);
+  const [layerPeopleStuck, setLayerPeopleStuck] = useState(true);
+  const [layerRescueRoute, setLayerRescueRoute] = useState(true);
   const [layerMesh, setLayerMesh] = useState(true);
   const [layerRiskVolumes, setLayerRiskVolumes] = useState(true);
 
   // Focus View Mode
-  const [focusMode, setFocusMode] = useState<'OVERVIEW' | 'INCIDENT' | 'TEAM' | 'MESH'>('OVERVIEW');
+  const [focusMode, setFocusMode] = useState<'OVERVIEW' | 'STRANDED_PEOPLE' | 'RESCUE_ROUTE' | 'TEAM' | 'MESH'>('OVERVIEW');
 
   // References for Three.js Scene Updates
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -69,13 +78,15 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   const particleGroupRef = useRef<THREE.Group | null>(null);
   const vehicleGroupRef = useRef<THREE.Group | null>(null);
   const buildingsGroupRef = useRef<THREE.Group | null>(null);
-  const meshLinesGroupRef = useRef<THREE.Group | null>(null);
+  const peopleStuckGroupRef = useRef<THREE.Group | null>(null);
+  const rescueSplineRef = useRef<THREE.Line | null>(null);
+  const rescueBeamRef = useRef<THREE.Mesh | null>(null);
 
   // Timeline labels
   const timelineSteps = [
     { label: '22:00', desc: 'Pre-Disaster Storm Warning' },
     { label: '22:15', desc: 'River Flood Surge 2.5ft' },
-    { label: '22:30', desc: '● LIVE: Peak Inundation (4ft)' },
+    { label: '22:30', desc: '● LIVE: Peak Inundation (4.2ft)' },
     { label: '22:45', desc: 'Rescue Deployments En Route' },
     { label: '+15m PREDICT', desc: 'Model: Flood Creep to East' },
     { label: '+30m PREDICT', desc: 'Model: Peak Water Level Drop' }
@@ -93,13 +104,13 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     // 1. Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020617); // Dark Slate 950
-    scene.fog = new THREE.FogExp2(0x020617, 0.008);
+    scene.fog = new THREE.FogExp2(0x020617, 0.007);
     sceneRef.current = scene;
 
     // 2. Camera
     const camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
-    camera.position.set(0, 60, 95);
-    camera.lookAt(0, 5, 0);
+    camera.position.set(-25, 55, 85);
+    camera.lookAt(-5, 8, 0);
     cameraRef.current = camera;
 
     // 3. Renderer
@@ -109,15 +120,15 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.15;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     // 4. Lighting
-    const ambientLight = new THREE.AmbientLight(0x1e293b, 1.8);
+    const ambientLight = new THREE.AmbientLight(0x1e293b, 2.0);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.5);
+    const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.6);
     dirLight.position.set(40, 80, 50);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
@@ -125,12 +136,17 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     scene.add(dirLight);
 
     // Subtle Tactical Amber Emergency Accent Light
-    const amberLight = new THREE.PointLight(0xf59e0b, 3, 100);
-    amberLight.position.set(-20, 25, -10);
+    const amberLight = new THREE.PointLight(0xf59e0b, 4, 120);
+    amberLight.position.set(-18, 25, 10);
     scene.add(amberLight);
 
+    // Emergency Red Beacon Point Light at Stranded Rooftop
+    const victimRedLight = new THREE.PointLight(0xef4444, 5, 40);
+    victimRedLight.position.set(-18, 16, 12);
+    scene.add(victimRedLight);
+
     // 5. Tactical Ground Plane Grid
-    const groundGeo = new THREE.PlaneGeometry(240, 240);
+    const groundGeo = new THREE.PlaneGeometry(260, 260);
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x090d16,
       roughness: 0.9,
@@ -141,16 +157,16 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const gridHelper = new THREE.GridHelper(240, 48, 0x1e293b, 0x0f172a);
+    const gridHelper = new THREE.GridHelper(260, 52, 0x1e293b, 0x0f172a);
     gridHelper.position.y = 0.05;
     scene.add(gridHelper);
 
     // 6. River & 3D Bridge
-    const riverGeo = new THREE.PlaneGeometry(40, 240);
+    const riverGeo = new THREE.PlaneGeometry(45, 260);
     const riverMat = new THREE.MeshStandardMaterial({
       color: 0x0369a1,
       roughness: 0.1,
-      metalness: 0.8,
+      metalness: 0.85,
       transparent: true,
       opacity: 0.85
     });
@@ -159,11 +175,11 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     river.position.set(0, 0.1, 0);
     scene.add(river);
 
-    // 3D Bridge Arch
-    const bridgeGeo = new THREE.BoxGeometry(16, 2, 60);
+    // 3D Bridge Arch (Where Water is Surging)
+    const bridgeGeo = new THREE.BoxGeometry(18, 2.5, 70);
     const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
     const bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
-    bridge.position.set(0, 2, 0);
+    bridge.position.set(0, 2.5, 0);
     scene.add(bridge);
 
     // 7. Procedural 3D Buildings
@@ -184,12 +200,12 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     });
 
     // Generate City Grid Blocks
-    for (let x = -70; x <= 70; x += 22) {
-      for (let z = -70; z <= 70; z += 22) {
-        if (Math.abs(x) < 22) continue; // Leave space for river corridor
+    for (let x = -80; x <= 80; x += 24) {
+      for (let z = -80; z <= 80; z += 24) {
+        if (Math.abs(x) < 24) continue; // River Corridor
 
-        const bHeight = Math.random() * 12 + 6;
-        const bGeo = new THREE.BoxGeometry(14, bHeight, 14);
+        const bHeight = Math.random() * 14 + 6;
+        const bGeo = new THREE.BoxGeometry(15, bHeight, 15);
         const bMesh = new THREE.Mesh(bGeo, buildingMat);
         bMesh.position.set(x + (Math.random() * 4 - 2), bHeight / 2, z + (Math.random() * 4 - 2));
         bMesh.castShadow = true;
@@ -205,96 +221,148 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       }
     }
 
-    // Hospital High-Ground Landmark
-    const hospGeo = new THREE.BoxGeometry(22, 16, 22);
+    // Stranded Building (Old Bridge Sector Rooftop - Height 12)
+    const strandedBldgGeo = new THREE.BoxGeometry(18, 12, 18);
+    const strandedBldgMat = new THREE.MeshStandardMaterial({ color: 0x273549, roughness: 0.7 });
+    const strandedBldg = new THREE.Mesh(strandedBldgGeo, strandedBldgMat);
+    strandedBldg.position.set(-18, 6, 12);
+    strandedBldg.castShadow = true;
+    buildingsGroup.add(strandedBldg);
+
+    // Safe Hospital Landmark (Safe Evacuation Shelter)
+    const hospGeo = new THREE.BoxGeometry(26, 18, 26);
     const hospMesh = new THREE.Mesh(hospGeo, hospitalMat);
-    hospMesh.position.set(45, 8, -40);
+    hospMesh.position.set(50, 9, -45);
     hospMesh.castShadow = true;
     buildingsGroup.add(hospMesh);
 
+    // Hospital Green Cross Marker on Roof
+    const crossGeoH = new THREE.BoxGeometry(10, 0.5, 3);
+    const crossGeoV = new THREE.BoxGeometry(3, 0.5, 10);
+    const crossMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+    const crossH = new THREE.Mesh(crossGeoH, crossMat);
+    const crossV = new THREE.Mesh(crossGeoV, crossMat);
+    crossH.position.set(50, 18.3, -45);
+    crossV.position.set(50, 18.3, -45);
+    buildingsGroup.add(crossH);
+    buildingsGroup.add(crossV);
+
     // 8. 3D Water Flood Inundation Volume
-    const waterGeo = new THREE.BoxGeometry(160, 4, 160);
+    const waterGeo = new THREE.BoxGeometry(180, 4.5, 180);
     const waterVolumeMat = new THREE.MeshStandardMaterial({
       color: 0x0284c7,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.5,
       roughness: 0.1,
       metalness: 0.9
     });
     const waterVolume = new THREE.Mesh(waterGeo, waterVolumeMat);
-    waterVolume.position.set(-10, 2, 10);
+    waterVolume.position.set(-10, 2.25, 10);
     scene.add(waterVolume);
     waterMeshRef.current = waterVolume;
 
     // 9. 3D AI Risk Volumes
-    const riskGeo = new THREE.CylinderGeometry(18, 24, 14, 32);
+    const riskGeo = new THREE.CylinderGeometry(20, 28, 16, 32);
     const riskMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
       transparent: true,
-      opacity: 0.25,
+      opacity: 0.22,
       wireframe: false
     });
     const riskVolume = new THREE.Mesh(riskGeo, riskMat);
-    riskVolume.position.set(-5, 7, 5);
+    riskVolume.position.set(-18, 8, 12);
     scene.add(riskVolume);
     riskVolumeMeshRef.current = riskVolume;
 
-    // 10. 3D Beacons for Incidents
-    const beaconsGroup = new THREE.Group();
-    scene.add(beaconsGroup);
+    // -------------------------------------------------------------
+    // 10. 3D STRANDED PEOPLE CLUSTERS ON ROOFTOP & BRIDGE
+    // -------------------------------------------------------------
+    const peopleStuckGroup = new THREE.Group();
+    peopleStuckGroupRef.current = peopleStuckGroup;
+    scene.add(peopleStuckGroup);
 
-    incidents.slice(0, 6).forEach((inc, idx) => {
-      const px = (idx % 2 === 0 ? -1 : 1) * (18 + idx * 10);
-      const pz = (idx % 3 === 0 ? -1 : 1) * (12 + idx * 12);
-      const color = inc.priority === 'CRITICAL' ? 0xef4444 : inc.priority === 'HIGH' ? 0xf59e0b : 0x10b981;
+    // Rooftop 1: 14 Stranded People at (-18, 12, 12)
+    const personGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.4, 8);
+    const personHeadGeo = new THREE.SphereGeometry(0.35, 8, 8);
+    const personMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+    const injuredMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
 
-      // Vertical Light Beam
-      const beamGeo = new THREE.CylinderGeometry(0.3, 0.3, 35, 16);
-      const beamMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 });
-      const beam = new THREE.Mesh(beamGeo, beamMat);
-      beam.position.set(px, 17.5, pz);
-      beaconsGroup.add(beam);
+    for (let p = 0; p < 14; p++) {
+      const px = -18 + (p % 4) * 1.8 - 2.7;
+      const pz = 12 + Math.floor(p / 4) * 1.8 - 2.7;
+      const isInjured = p === 0 || p === 1;
 
-      // Glowing Pulse Sphere
-      const sphereGeo = new THREE.SphereGeometry(1.6, 16, 16);
-      const sphereMat = new THREE.MeshBasicMaterial({ color });
-      const sphere = new THREE.Mesh(sphereGeo, sphereMat);
-      sphere.position.set(px, 35, pz);
-      beaconsGroup.add(sphere);
+      const body = new THREE.Mesh(personGeo, isInjured ? injuredMat : personMat);
+      body.position.set(px, 12.7, pz);
+      const head = new THREE.Mesh(personHeadGeo, isInjured ? injuredMat : personMat);
+      head.position.set(px, 13.7, pz);
+      
+      peopleStuckGroup.add(body);
+      peopleStuckGroup.add(head);
+    }
 
-      // Ground Ring
-      const ringGeo = new THREE.RingGeometry(2, 3.5, 32);
-      const ringMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(px, 0.2, pz);
-      beaconsGroup.add(ring);
+    // Floating SOS Beacon Ring Above Trapped Rooftop
+    const sosRingGeo = new THREE.RingGeometry(3.5, 4.2, 32);
+    const sosRingMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+    const sosRing = new THREE.Mesh(sosRingGeo, sosRingMat);
+    sosRing.rotation.x = -Math.PI / 2;
+    sosRing.position.set(-18, 14.5, 12);
+    peopleStuckGroup.add(sosRing);
+
+    // Vertical Light Beam from Rooftop
+    const beamGeo = new THREE.CylinderGeometry(0.3, 0.3, 40, 16);
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.85 });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(-18, 32, 12);
+    peopleStuckGroup.add(beam);
+
+    // -------------------------------------------------------------
+    // 11. 3D RESCUE ROUTE SPLINE (HOW RESCUERS RESCUE THEM)
+    // -------------------------------------------------------------
+    const routeCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 3, -40),    // Rescuer Starting Base
+      new THREE.Vector3(0, 3, -15),    // River Channel High-Ground Approach
+      new THREE.Vector3(-10, 3.5, 0),  // Deep Waterway Navigation (Avoids collapsed bridge)
+      new THREE.Vector3(-18, 4, 8),    // Approach Under Trapped Rooftop
+      new THREE.Vector3(-18, 12, 12),  // Winch / Inflatable Raft Extraction Point
+      new THREE.Vector3(15, 6, -10),   // High-Ground Safe Evacuation Channel
+      new THREE.Vector3(50, 10, -45)   // Safe Hospital & Relief Shelter
+    ]);
+
+    const routePoints = routeCurve.getPoints(80);
+    const routeGeo = new THREE.BufferGeometry().setFromPoints(routePoints);
+    const routeMat = new THREE.LineDashedMaterial({
+      color: 0x10b981,
+      dashSize: 3,
+      gapSize: 1.5,
+      linewidth: 4
     });
+    const routeLine = new THREE.Line(routeGeo, routeMat);
+    routeLine.computeLineDistances();
+    scene.add(routeLine);
+    rescueSplineRef.current = routeLine;
 
-    // 11. 3D Moving Rescue Vehicles
+    // Extraction Winch Laser Beam (Initially Hidden)
+    const winchGeo = new THREE.CylinderGeometry(0.2, 0.2, 8, 16);
+    const winchMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0 });
+    const winchBeam = new THREE.Mesh(winchGeo, winchMat);
+    winchBeam.position.set(-18, 8, 12);
+    scene.add(winchBeam);
+    rescueBeamRef.current = winchBeam;
+
+    // 12. 3D Moving Rescue Vehicles
     const vehicleGroup = new THREE.Group();
     vehicleGroupRef.current = vehicleGroup;
     scene.add(vehicleGroup);
 
     // Team Bravo Rescue Boat
-    const boatGeo = new THREE.BoxGeometry(4, 2, 7);
+    const boatGeo = new THREE.BoxGeometry(4.5, 2, 8);
     const boatMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.3 });
     const boat = new THREE.Mesh(boatGeo, boatMat);
-    boat.position.set(0, 3, -30);
+    boat.position.set(0, 3, -40);
     vehicleGroup.add(boat);
 
-    // Rescue Alpha Truck
-    const truckGeo = new THREE.BoxGeometry(4, 3, 6);
-    const truckMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4 });
-    const truck = new THREE.Mesh(truckGeo, truckMat);
-    truck.position.set(28, 1.5, 20);
-    vehicleGroup.add(truck);
-
-    // 12. 3D LoRa Mesh Network Lines & Data Particles
-    const meshLinesGroup = new THREE.Group();
-    meshLinesGroupRef.current = meshLinesGroup;
-    scene.add(meshLinesGroup);
-
+    // 13. 3D LoRa Mesh Network Lines & Data Particles
     const particleGroup = new THREE.Group();
     particleGroupRef.current = particleGroup;
     scene.add(particleGroup);
@@ -308,7 +376,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       particleGroup.add(particle);
     }
 
-    // 13. Orbit / Interaction Mouse Controls
+    // 14. Orbit / Interaction Mouse Controls
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
 
@@ -324,7 +392,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
       cameraRef.current.position.x += deltaX * 0.2;
       cameraRef.current.position.y = Math.max(15, Math.min(120, cameraRef.current.position.y - deltaY * 0.2));
-      cameraRef.current.lookAt(0, 5, 0);
+      cameraRef.current.lookAt(-5, 8, 0);
 
       previousMousePosition = { x: e.clientX, y: e.clientY };
     };
@@ -346,7 +414,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
       cameraRef.current.position.x += deltaX * 0.3;
       cameraRef.current.position.y = Math.max(15, Math.min(120, cameraRef.current.position.y - deltaY * 0.3));
-      cameraRef.current.lookAt(0, 5, 0);
+      cameraRef.current.lookAt(-5, 8, 0);
 
       previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
@@ -361,7 +429,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     domElement.addEventListener('touchmove', onTouchMove);
     domElement.addEventListener('touchend', onTouchEnd);
 
-    // 14. Animation Loop
+    // 15. Animation Loop
     let animationFrameId: number;
     let clock = new THREE.Clock();
 
@@ -371,7 +439,12 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
       // Animate Water subtle swell
       if (waterMeshRef.current) {
-        waterMeshRef.current.position.y = 2 + Math.sin(elapsedTime * 1.5) * 0.25;
+        waterMeshRef.current.position.y = 2.25 + Math.sin(elapsedTime * 1.5) * 0.25;
+      }
+
+      // Animate Stranded SOS Halo rotation
+      if (peopleStuckGroupRef.current && peopleStuckGroupRef.current.children[28]) {
+        peopleStuckGroupRef.current.children[28].rotation.z = elapsedTime * 1.5;
       }
 
       // Animate Data Packet Particle Flow
@@ -382,9 +455,18 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         });
       }
 
-      // Animate Moving Vehicle (Team Bravo Boat)
+      // Animate Moving Vehicle (Team Bravo Boat along rescue route)
       if (vehicleGroupRef.current && vehicleGroupRef.current.children[0]) {
-        vehicleGroupRef.current.children[0].position.z = -30 + Math.sin(elapsedTime * 0.8) * 18;
+        const boatMesh = vehicleGroupRef.current.children[0];
+        
+        if (isRescueSimulating) {
+          // Dynamic progression along rescue spline
+          const t = (Math.sin(elapsedTime * 0.4) + 1) / 2;
+          const pos = routeCurve.getPoint(t);
+          boatMesh.position.copy(pos);
+        } else {
+          boatMesh.position.z = -40 + Math.sin(elapsedTime * 0.8) * 15;
+        }
       }
 
       renderer.render(scene, camera);
@@ -417,7 +499,48 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         rendererRef.current.domElement.remove();
       }
     };
-  }, []);
+  }, [isRescueSimulating]);
+
+  // -------------------------------------------------------------
+  // RESCUE EXTRACTION SIMULATION CONTROLLER
+  // -------------------------------------------------------------
+  const handleStartRescueSimulation = () => {
+    setIsRescueSimulating(true);
+    setRescueStep(1);
+    setRescueCompleted(false);
+
+    // Smooth Camera glide to Stranded People
+    if (cameraRef.current) {
+      cameraRef.current.position.set(-25, 24, 30);
+      cameraRef.current.lookAt(-18, 12, 12);
+    }
+
+    // Step 1 -> Step 2: Approach & Winch (at 2.5s)
+    setTimeout(() => {
+      setRescueStep(2);
+      if (rescueBeamRef.current) {
+        (rescueBeamRef.current.material as THREE.MeshBasicMaterial).opacity = 0.8;
+      }
+    }, 2500);
+
+    // Step 2 -> Step 3: Trauma Stabilization (at 5.0s)
+    setTimeout(() => {
+      setRescueStep(3);
+    }, 5000);
+
+    // Step 3 -> Step 4: Evacuation to Hospital Safe Shelter (at 7.5s)
+    setTimeout(() => {
+      setRescueStep(4);
+      setRescueCompleted(true);
+      if (rescueBeamRef.current) {
+        (rescueBeamRef.current.material as THREE.MeshBasicMaterial).opacity = 0;
+      }
+      if (cameraRef.current) {
+        cameraRef.current.position.set(30, 35, -20);
+        cameraRef.current.lookAt(50, 10, -45);
+      }
+    }, 7500);
+  };
 
   // -------------------------------------------------------------
   // TIMELINE & SIMULATION CONTROLS
@@ -426,7 +549,6 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     setTimelineIndex(idx);
     if (!waterMeshRef.current || !riskVolumeMeshRef.current) return;
 
-    // Adjust 3D Water Volume & Risk Heights dynamically
     if (idx === 0) {
       waterMeshRef.current.scale.set(0.6, 0.4, 0.6);
       riskVolumeMeshRef.current.scale.set(0.5, 0.5, 0.5);
@@ -440,7 +562,6 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       waterMeshRef.current.scale.set(1.1, 1.2, 1.1);
       riskVolumeMeshRef.current.scale.set(1.1, 1.1, 1.1);
     } else if (idx >= 4) {
-      // Predictive Model
       waterMeshRef.current.scale.set(1.25, 1.4, 1.25);
       riskVolumeMeshRef.current.scale.set(1.3, 1.3, 1.3);
     }
@@ -462,52 +583,27 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   }, [isPlayingTimeline]);
 
   // -------------------------------------------------------------
-  // SELF-HEALING NETWORK SIMULATION WOW DEMO
-  // -------------------------------------------------------------
-  const handleSimulateRelayKill = () => {
-    setIsSimulatedRelayDead(true);
-    setMeshStatusText('LOST');
-
-    // Searching alternative path
-    setTimeout(() => {
-      setMeshStatusText('SEARCHING');
-    }, 1000);
-
-    // Path recovered via Drone Relay
-    setTimeout(() => {
-      setMeshStatusText('RECOVERED');
-    }, 2400);
-  };
-
-  const handleResetRelay = () => {
-    setIsSimulatedRelayDead(false);
-    setMeshStatusText('OPTIMAL');
-  };
-
-  // -------------------------------------------------------------
   // CAMERA FOCUS CONTROLS
   // -------------------------------------------------------------
-  const handleFocusIncident = (inc: EmergencyPacket) => {
-    setSelectedIncident(inc);
-    setFocusMode('INCIDENT');
+  const handleFocusStrandedPeople = () => {
+    setFocusMode('STRANDED_PEOPLE');
     if (!cameraRef.current) return;
-    cameraRef.current.position.set(-15, 30, 45);
-    cameraRef.current.lookAt(-10, 5, 10);
+    cameraRef.current.position.set(-28, 22, 28);
+    cameraRef.current.lookAt(-18, 12, 12);
   };
 
-  const handleFocusTeam = (teamId: string) => {
-    setSelectedTeamId(teamId);
-    setFocusMode('TEAM');
+  const handleFocusRescueRoute = () => {
+    setFocusMode('RESCUE_ROUTE');
     if (!cameraRef.current) return;
-    cameraRef.current.position.set(10, 20, -10);
-    cameraRef.current.lookAt(0, 3, -30);
+    cameraRef.current.position.set(0, 50, 40);
+    cameraRef.current.lookAt(0, 5, -10);
   };
 
   const handleResetCamera = () => {
     setFocusMode('OVERVIEW');
     if (!cameraRef.current) return;
-    cameraRef.current.position.set(0, 60, 95);
-    cameraRef.current.lookAt(0, 5, 0);
+    cameraRef.current.position.set(-25, 55, 85);
+    cameraRef.current.lookAt(-5, 8, 0);
   };
 
   return (
@@ -530,71 +626,63 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
           <div>
             <h1 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
-              <span>DHOST 3D DIGITAL TWIN™</span>
+              <span>DHOST 3D OPERATIONAL TWIN™</span>
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
-                OPERATIONAL TWIN
+                PEOPLE + RESCUE TRAJECTORY
               </span>
             </h1>
             <p className="text-[10px] text-slate-400 font-mono hidden md:block">
-              Sector: Salem Disaster Ground • 3D Terrain + LoRa Mesh + Real-Time Telemetry
+              Old Bridge Pillar Sector • 14 Stranded Victims • Zodiac Waterway Extraction
             </p>
           </div>
         </div>
 
-        {/* Center: Layer Filters */}
+        {/* Center: Layer Filters & Quick Focus */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 text-xs">
+          
           <button
-            onClick={() => {
-              setLayerFlood(!layerFlood);
-              if (waterMeshRef.current) waterMeshRef.current.visible = !layerFlood;
-            }}
-            className={`px-2.5 py-1 rounded-xl font-bold transition text-[11px] whitespace-nowrap ${
-              layerFlood ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+            onClick={handleFocusStrandedPeople}
+            className={`px-3 py-1.5 rounded-xl font-black transition text-xs whitespace-nowrap flex items-center gap-1.5 shadow-md ${
+              focusMode === 'STRANDED_PEOPLE' 
+                ? 'bg-red-600 text-white ring-2 ring-red-400' 
+                : 'bg-red-950/80 border border-red-500/50 text-red-300 hover:bg-red-900'
             }`}
           >
-            🌊 Flood Layer
+            <Users className="w-3.5 h-3.5" />
+            <span>👥 Where People Stuck (14)</span>
           </button>
 
           <button
-            onClick={() => {
-              setLayerRiskVolumes(!layerRiskVolumes);
-              if (riskVolumeMeshRef.current) riskVolumeMeshRef.current.visible = !layerRiskVolumes;
-            }}
-            className={`px-2.5 py-1 rounded-xl font-bold transition text-[11px] whitespace-nowrap ${
-              layerRiskVolumes ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400'
+            onClick={handleFocusRescueRoute}
+            className={`px-3 py-1.5 rounded-xl font-black transition text-xs whitespace-nowrap flex items-center gap-1.5 shadow-md ${
+              focusMode === 'RESCUE_ROUTE' 
+                ? 'bg-emerald-600 text-white ring-2 ring-emerald-400' 
+                : 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-900'
             }`}
           >
-            🧠 3D Risk Zones
+            <Navigation className="w-3.5 h-3.5" />
+            <span>🚦 How Rescuers Rescue</span>
           </button>
 
           <button
             onClick={handleResetCamera}
-            className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] whitespace-nowrap"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs whitespace-nowrap"
           >
-            🔭 Reset Cam
+            🔭 Overview
           </button>
+
         </div>
 
-        {/* Right: Self-Healing Demo Trigger */}
+        {/* Right: Live Rescue Extraction Trigger */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {!isSimulatedRelayDead ? (
-            <button
-              onClick={handleSimulateRelayKill}
-              className="px-3 py-1.5 rounded-xl bg-red-600/30 hover:bg-red-600/40 border border-red-500/50 text-red-300 font-black text-xs flex items-center gap-1.5 transition active:scale-95"
-            >
-              <Zap className="w-3.5 h-3.5 text-red-400" />
-              <span className="hidden sm:inline">⚡ Kill Relay (Self-Healing Demo)</span>
-              <span className="sm:hidden">Kill Node</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleResetRelay}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-300 font-black text-xs flex items-center gap-1.5 transition"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Topology Restored</span>
-            </button>
-          )}
+          <button
+            onClick={handleStartRescueSimulation}
+            disabled={isRescueSimulating}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-amber-950/50 active:scale-95 transition"
+          >
+            <LifeBuoy className="w-4 h-4 animate-spin" />
+            <span>🚀 {isRescueSimulating ? 'Rescue in Progress...' : 'SIMULATE RESCUE EXTRACTION'}</span>
+          </button>
         </div>
 
       </div>
@@ -607,52 +695,104 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         {/* Three.js DOM Injection Mount */}
         <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-        {/* Tactical HUD Overlay: Self-Healing Network Toast */}
-        {isSimulatedRelayDead && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-2xl bg-slate-900/90 border-2 border-amber-500 shadow-2xl font-mono text-xs text-white flex items-center gap-2.5 animate-in zoom-in-95">
-            {meshStatusText === 'LOST' && (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                <span className="text-red-400 font-black">⚠ NETWORK PATH LOST (Relay DD-RL-102 Severed)</span>
-              </>
-            )}
-            {meshStatusText === 'SEARCHING' && (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-spin" />
-                <span className="text-amber-300 font-black">SEARCHING ALTERNATIVE MESH PATHWAY...</span>
-              </>
-            )}
-            {meshStatusText === 'RECOVERED' && (
-              <>
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span className="text-emerald-400 font-black">🟢 PATH RECOVERED VIA ROOFTOP DRONE RELAY C</span>
-              </>
-            )}
+        {/* Live Rescue Step HUD Overlay during Simulation */}
+        {isRescueSimulating && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-5 py-3 rounded-2xl bg-slate-900/95 border-2 border-emerald-500 shadow-2xl font-mono text-xs text-white max-w-lg w-full space-y-2 animate-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-emerald-400 flex items-center gap-1.5">
+                <LifeBuoy className="w-4 h-4 animate-spin" />
+                <span>3D TACTICAL RESCUE EXTRACTION SEQUENCE</span>
+              </span>
+              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
+                STEP {rescueStep} OF 4
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              {rescueStep === 1 && (
+                <p className="text-white font-bold text-xs">
+                  🚤 1. Team Bravo Zodiac Boat navigating deep waterway channel (avoiding submerged road blocks)...
+                </p>
+              )}
+              {rescueStep === 2 && (
+                <p className="text-amber-300 font-bold text-xs">
+                  ⚓ 2. Boat arrived under stranded rooftop. Deploying high-line winch lines and inflatable safety rafts...
+                </p>
+              )}
+              {rescueStep === 3 && (
+                <p className="text-blue-300 font-bold text-xs">
+                  🩺 3. 14 Stranded victims extricated into boat. Paramedics stabilizing 2 trauma fracture casualties...
+                </p>
+              )}
+              {rescueStep === 4 && (
+                <p className="text-emerald-400 font-black text-xs">
+                  🏥 4. SAFE EVACUATION COMPLETE! All 14 individuals transported safely to Govt Hospital Shelter (Safe Zone).
+                </p>
+              )}
+            </div>
+
+            {/* Step Progress Bar */}
+            <div className="w-full h-1.5 rounded-full bg-slate-950 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-amber-500 via-blue-500 to-emerald-400 transition-all duration-700 ease-out"
+                style={{ width: `${(rescueStep / 4) * 100}%` }}
+              />
+            </div>
           </div>
         )}
 
-        {/* Floating Fast-Focus Sidebar */}
-        <div className="absolute top-4 left-4 z-20 space-y-1.5 font-mono text-xs hidden sm:block">
-          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest block bg-slate-950/80 px-2 py-1 rounded">
-            3D SPATIAL TARGETS:
-          </span>
-          {incidents.slice(0, 3).map(inc => (
-            <button
-              key={inc.incidentId}
-              onClick={() => handleFocusIncident(inc)}
-              className={`p-2 rounded-xl border text-left block w-44 backdrop-blur-md transition ${
-                selectedIncident?.incidentId === inc.incidentId
-                  ? 'bg-amber-950/80 border-amber-400 text-white'
-                  : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[11px]">{inc.incidentId}</span>
-                <span className="text-[9px] text-red-400 font-bold">{inc.priority}</span>
-              </div>
-              <span className="text-[10px] block truncate">{inc.peopleCount} People • {inc.location?.address || 'Bridge'}</span>
-            </button>
-          ))}
+        {/* Floating Stranded People Manifest Card */}
+        <div className="absolute top-4 left-4 z-20 p-3.5 rounded-2xl bg-slate-900/90 border border-red-500/60 backdrop-blur-md space-y-2 text-xs font-mono max-w-xs shadow-2xl hidden sm:block">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span className="font-black text-red-400 flex items-center gap-1.5">
+              <Users className="w-4 h-4" />
+              <span>14 STRANDED VICTIMS</span>
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 text-[10px] font-bold">
+              CRITICAL
+            </span>
+          </div>
+
+          <div className="space-y-1 text-[11px] text-slate-300">
+            <p>📍 <strong>Location:</strong> Rooftop of Bridge Pillar Bld</p>
+            <p>🌊 <strong>Surge Depth:</strong> 4.2ft Rapid Flow</p>
+            <p>🩺 <strong>Injuries:</strong> 2 Casualties (1 Leg Fracture)</p>
+            <p>🔋 <strong>Phone Battery:</strong> 8% (Survival Mode)</p>
+          </div>
+
+          <button
+            onClick={handleFocusStrandedPeople}
+            className="w-full py-1.5 rounded-xl bg-red-600/30 hover:bg-red-600/40 border border-red-500/50 text-red-200 font-bold text-[10px] transition"
+          >
+            Zoom Camera to Rooftop ➔
+          </button>
+        </div>
+
+        {/* Floating Rescue Extraction Strategy Card */}
+        <div className="absolute top-4 right-4 z-20 p-3.5 rounded-2xl bg-slate-900/90 border border-emerald-500/60 backdrop-blur-md space-y-2 text-xs font-mono max-w-xs shadow-2xl hidden md:block">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span className="font-black text-emerald-400 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4" />
+              <span>HOW RESCUERS RESCUE</span>
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+              SAFE ROUTE
+            </span>
+          </div>
+
+          <div className="space-y-1 text-[11px] text-slate-300">
+            <p>🚤 <strong>Vehicle:</strong> Zodiac Motorized Boat #02</p>
+            <p>🛣️ <strong>Safe Path:</strong> Deep River Bed (Green Spline)</p>
+            <p>❌ <strong>Avoid:</strong> Submerged Bridge Road (11kV wire)</p>
+            <p>🏥 <strong>Destination:</strong> Hospital Safe Zone (50, 10, -45)</p>
+          </div>
+
+          <button
+            onClick={handleFocusRescueRoute}
+            className="w-full py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/50 text-emerald-200 font-bold text-[10px] transition"
+          >
+            Inspect Extraction Spline ➔
+          </button>
         </div>
 
         {/* 3D Gesture Guide Hint */}
@@ -723,35 +863,36 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
                 <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-500/20 text-red-400 border border-red-500/50">
                   {selectedIncident.priority}
                 </span>
-                <h3 className="text-sm font-black text-white">{selectedIncident.incidentCategoryLabel} ({selectedIncident.peopleCount} Trapped)</h3>
+                <h3 className="text-sm font-black text-white">
+                  {selectedIncident.incidentCategoryLabel} ({rescueCompleted ? '14 Rescued Safe' : '14 People Trapped on Rooftop'})
+                </h3>
               </div>
-              <p className="text-xs text-slate-300 font-medium italic">"{selectedIncident.translatedText || selectedIncident.requestText}"</p>
+              <p className="text-xs text-slate-300 font-medium italic">
+                "{selectedIncident.translatedText || selectedIncident.requestText}"
+              </p>
               <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
-                <span>📍 3D Landmark: {selectedIncident.location?.address || 'Old Bridge Pillar'}</span>
-                <span>Assigned Unit: <strong className="text-emerald-400">{selectedIncident.assignedTeamName || 'Rescue Alpha'}</strong></span>
-                <span>Mesh Hops: <strong className="text-blue-400">3 Hops (LoRa 868MHz)</strong></span>
+                <span>📍 3D Landmark: Rooftop Pillar (Old Bridge Sector)</span>
+                <span>Assigned Unit: <strong className="text-emerald-400">Team Bravo (Zodiac Boat #02)</strong></span>
+                <span>Mesh Route: <strong className="text-blue-400">3 Hops (LoRa 868MHz)</strong></span>
               </div>
             </div>
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => {
-                  if (onSelectIncident) onSelectIncident(selectedIncident);
-                  onClose();
-                }}
+                onClick={handleStartRescueSimulation}
                 className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg active:scale-95 transition flex items-center gap-1.5"
               >
-                <AlertOctagon className="w-4 h-4" />
-                <span>ACT NOW ON 3D TARGET</span>
+                <LifeBuoy className="w-4 h-4" />
+                <span>{rescueCompleted ? 'RE-RUN EXTRACTION SIM' : 'EXECUTE RESCUE EXTRACTION'}</span>
               </button>
 
               <button
-                onClick={() => handleFocusTeam('TEAM-BRAVO')}
-                className="px-4 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs flex items-center gap-1.5 transition"
+                onClick={handleFocusStrandedPeople}
+                className="px-4 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-black text-xs flex items-center gap-1.5 transition"
               >
-                <Navigation className="w-4 h-4" />
-                <span>Follow 3D Team</span>
+                <Users className="w-4 h-4" />
+                <span>Focus Victims</span>
               </button>
             </div>
 
