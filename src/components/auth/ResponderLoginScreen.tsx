@@ -66,9 +66,9 @@ export const ResponderLoginScreen: React.FC = () => {
         </div>
 
         {/* Header */}
-        <div className="text-center space-y-1">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400">
-            <Shield className="w-6 h-6" />
+        <div className="text-center space-y-1.5">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-950 border border-slate-700/80 p-1 flex items-center justify-center shadow-lg">
+            <img src="/disaster-dhost-logo.png" alt="Disaster Dhost" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-xl font-black text-white tracking-tight">Authorized Responder Access</h2>
           <p className="text-xs text-slate-400">
