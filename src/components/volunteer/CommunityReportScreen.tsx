@@ -19,11 +19,11 @@ export const CommunityReportScreen: React.FC = () => {
       description,
       peopleCount,
       location: {
-        latitude: 13.0120,
-        longitude: 80.2145,
+        lat: 11.6685,
+        lng: 78.1420,
         accuracyMeters: 8.2,
-        address: landmark || 'Maduvankarai, Chennai',
-        landmark
+        address: landmark || 'Maduvankarai, Salem',
+        landmark: landmark || 'Maduvankarai'
       }
     });
 

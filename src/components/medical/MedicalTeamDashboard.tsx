@@ -134,7 +134,7 @@ export const MedicalTeamDashboard: React.FC = () => {
                   {inc.priority === 'CRITICAL' ? '🔴 RED TAG (IMMEDIATE)' : '🟡 YELLOW TAG (URGENT)'}
                 </span>
                 <span className="text-xs font-bold text-slate-300">
-                  {inc.peopleCount} Casualties • {inc.location.address}
+                  {inc.peopleCount} Casualties • {inc.location?.address || 'Disaster Area'}
                 </span>
               </div>
 

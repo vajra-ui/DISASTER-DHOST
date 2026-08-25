@@ -14,6 +14,7 @@ import {
 import { dhostAuthService } from '../services/dhostAuthService';
 import { incidentService } from '../services/incidentService';
 import { meshNetworkService } from '../services/meshNetworkService';
+import { hardwareService } from '../services/hardwareService';
 import { DEMO_RESPONDER_ACCOUNTS } from '../services/dhostAuthService';
 
 interface DhostAuthContextType {
@@ -51,6 +52,17 @@ interface DhostAuthContextType {
   updateIncidentPriority: (incidentId: string, priority: IncidentPriority) => EmergencyPacket | null;
   resetIncidents: () => void;
   resetData: () => void;
+
+  // Hardware & Acoustic Beacons
+  getLiveCoordinates: () => Promise<LocationData>;
+  getBatteryLevel: () => number;
+  playRescueSiren: () => boolean;
+  stopRescueSiren: () => void;
+  playDispatchChime: () => void;
+  startVoiceSos: (onTranscript: (text: string, isFinal: boolean) => void, onError: (err: string) => void) => () => void;
+  generateSmsDistressUri: (packet: EmergencyPacket) => string;
+  generateWhatsAppDistressUri: (packet: EmergencyPacket) => string;
+  triggerNativeShare: (packet: EmergencyPacket) => Promise<boolean>;
 
   // Inspector & Modals
   selectedIncident: EmergencyPacket | null;
@@ -200,6 +212,16 @@ export const DhostAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateIncidentPriority,
         resetIncidents,
         resetData,
+        // Hardware & Acoustic Beacons
+        getLiveCoordinates: () => hardwareService.getLiveCoordinates(),
+        getBatteryLevel: () => hardwareService.getBatteryLevel(),
+        playRescueSiren: () => hardwareService.playRescueSiren(),
+        stopRescueSiren: () => hardwareService.stopRescueSiren(),
+        playDispatchChime: () => hardwareService.playDispatchChime(),
+        startVoiceSos: (onTranscript, onError) => hardwareService.startVoiceSos(onTranscript, onError),
+        generateSmsDistressUri: (packet) => hardwareService.generateSmsDistressUri(packet),
+        generateWhatsAppDistressUri: (packet) => hardwareService.generateWhatsAppDistressUri(packet),
+        triggerNativeShare: (packet) => hardwareService.triggerNativeShare(packet),
         selectedIncident,
         setSelectedIncident,
         isPacketInspectorOpen,

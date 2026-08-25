@@ -25,14 +25,22 @@ export const CommanderDashboard: React.FC = () => {
     assignTeam, 
     updateIncidentPriority, 
     updateIncidentStatus,
-    openPacketInspector
+    openPacketInspector,
+    playDispatchChime
   } = useDhostAuth();
 
   const [filter, setFilter] = useState<'ALL' | 'CRITICAL' | 'FLOOD' | 'MEDICAL' | 'COMMUNITY'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const totalActive = incidents.filter(i => i.status !== 'COMPLETED' && i.status !== 'SAFE_BROADCAST').length;
-  const criticalCount = incidents.filter(i => i.priority === 'CRITICAL' && i.status !== 'COMPLETED').length;
+  // Audio chime on new incident
+  useEffect(() => {
+    if (incidents.length > 0) {
+      playDispatchChime();
+    }
+  }, [incidents.length]);
+
+  const totalActive = incidents.filter(i => i.status !== 'RESOLVED' && i.status !== 'RESCUED').length;
+  const criticalCount = incidents.filter(i => i.priority === 'CRITICAL' && i.status !== 'RESOLVED').length;
   const inProgressCount = incidents.filter(i => i.status === 'EN_ROUTE' || i.status === 'ON_SCENE').length;
   const communityCount = incidents.filter(i => i.isCommunityReport).length;
 
@@ -44,10 +52,10 @@ export const CommanderDashboard: React.FC = () => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
-        inc.incidentId.toLowerCase().includes(q) ||
-        inc.location.address.toLowerCase().includes(q) ||
-        inc.requestText.toLowerCase().includes(q) ||
-        inc.incidentCategoryLabel.toLowerCase().includes(q)
+        (inc.incidentId || '').toLowerCase().includes(q) ||
+        (inc.location?.address || '').toLowerCase().includes(q) ||
+        (inc.requestText || '').toLowerCase().includes(q) ||
+        (inc.incidentCategoryLabel || '').toLowerCase().includes(q)
       );
     }
     return true;
@@ -206,9 +214,9 @@ export const CommanderDashboard: React.FC = () => {
                   </p>
 
                   <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
-                    <span>📍 {inc.location.address}</span>
+                    <span>📍 {inc.location?.address || 'Disaster Area'}</span>
                     <span>🔋 {inc.batteryLevel}% Battery</span>
-                    <span>📡 {inc.hopCount} Hops via {inc.dhostPath[0]}</span>
+                    <span>📡 {inc.hopCount} Hops via {inc.dhostPath?.[0] || 'Mesh Relay'}</span>
                     <span>🕒 {new Date(inc.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
@@ -226,20 +234,20 @@ export const CommanderDashboard: React.FC = () => {
                   </select>
 
                   <select
-                    value={inc.assignedTeam?.teamId || ''}
+                    value={inc.assignedTeamId || ''}
                     onChange={e => {
                       if (e.target.value === 'RSC-1042') assignTeam(inc.incidentId, 'RSC-1042', 'Rescue Alpha (Sgt. Sen)');
                       else if (e.target.value === 'RSC-1088') assignTeam(inc.incidentId, 'RSC-1088', 'Rescue Bravo (Insp. Murugan)');
-                      else if (e.target.value === 'MED-204') assignTeam(inc.incidentId, 'MED-204', 'Medical Rapid (Dr. Raghavan)');
-                      else if (e.target.value === 'AIR-01') assignTeam(inc.incidentId, 'AIR-01', 'Coast Guard Air Medevac');
+                      else if (e.target.value === 'MED-204') assignTeam(inc.incidentId, 'MED-204', 'Med Triage 2 (Dr. Raghavan)');
+                      else if (e.target.value === 'AIR-01') assignTeam(inc.incidentId, 'AIR-01', 'Coast Guard Helo Air-1');
                     }}
                     className="py-1.5 px-2.5 rounded-xl bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-200 focus:outline-none"
                   >
-                    <option value="">Assign Team...</option>
+                    <option value="">Dispatch: Unassigned</option>
                     <option value="RSC-1042">🚒 Rescue Alpha (RSC-1042)</option>
                     <option value="RSC-1088">🚤 Rescue Bravo (RSC-1088)</option>
-                    <option value="MED-204">🩺 Medical Rapid (MED-204)</option>
-                    <option value="AIR-01">🚁 Air Medevac (AIR-01)</option>
+                    <option value="MED-204">🩺 Med Triage 2 (MED-204)</option>
+                    <option value="AIR-01">🚁 Helo Air-Lift (AIR-01)</option>
                   </select>
 
                   <select

@@ -6,6 +6,7 @@ import {
   LocationData 
 } from '../types/dhostAuth';
 import { sessionService } from './sessionService';
+import { hardwareService } from './hardwareService';
 
 const INCIDENTS_STORAGE_KEY = 'dhost_emergency_incidents_store';
 
@@ -188,6 +189,12 @@ class IncidentService {
 
   constructor() {
     this.loadIncidents();
+    if (typeof window !== 'undefined') {
+      hardwareService.onMeshEvent(() => {
+        this.loadIncidents();
+        this.notify();
+      });
+    }
   }
 
   private loadIncidents(): void {
@@ -213,9 +220,12 @@ class IncidentService {
     }
   }
 
-  private persist(): void {
+  private persist(broadcast = true): void {
     try {
       localStorage.setItem(INCIDENTS_STORAGE_KEY, JSON.stringify(this.incidents));
+      if (broadcast) {
+        hardwareService.broadcastMeshEvent('STATUS_CHANGE', { count: this.incidents.length });
+      }
     } catch (e) {
       console.warn('Failed to persist incidents store', e);
     }
@@ -309,7 +319,8 @@ class IncidentService {
     };
 
     this.incidents.unshift(newPacket);
-    this.persist();
+    this.persist(false);
+    hardwareService.broadcastMeshEvent('NEW_INCIDENT', newPacket);
     return newPacket;
   }
 

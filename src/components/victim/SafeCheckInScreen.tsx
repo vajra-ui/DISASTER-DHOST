@@ -17,11 +17,11 @@ export const SafeCheckInScreen: React.FC = () => {
       name,
       message,
       location: {
-        latitude: 13.0878,
-        longitude: 80.2174,
+        lat: 11.6685,
+        lng: 78.1420,
         accuracyMeters: 6.5,
-        address: landmark || 'Anna Nagar Relief Shelter',
-        landmark
+        address: landmark || 'Fairlands Relief Shelter, Salem',
+        landmark: landmark || 'Fairlands Relief Shelter'
       }
     });
 

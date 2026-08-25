@@ -31,7 +31,7 @@ export const RescueTeamDashboard: React.FC = () => {
 
   // Filter incidents assigned to this rescue team or in pending queue
   const assignedIncidents = incidents.filter(
-    i => (i.assignedTeam?.teamId === currentUser?.responderId || i.status === 'PENDING_DISPATCH') && i.status !== 'COMPLETED'
+    i => (i.assignedTeamId === currentUser?.responderId || i.status === 'REPORTED' || i.status === 'ACKNOWLEDGED') && i.status !== 'RESOLVED'
   );
 
   const activeIncident = assignedIncidents[0] || incidents[0];
@@ -115,8 +115,8 @@ export const RescueTeamDashboard: React.FC = () => {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase">GPS Landmark</span>
-              <p className="font-bold text-slate-200">{activeIncident.location.address}</p>
-              <span className="text-[10px] text-blue-400 font-mono">±{activeIncident.location.accuracyMeters}m Accuracy</span>
+              <p className="font-bold text-slate-200">{activeIncident.location?.address || 'Disaster Area'}</p>
+              <span className="text-[10px] text-blue-400 font-mono">±{activeIncident.location?.accuracyMeters || 5}m Accuracy</span>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
