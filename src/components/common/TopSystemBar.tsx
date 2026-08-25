@@ -46,15 +46,15 @@ export const TopSystemBar: React.FC = () => {
           onClick={() => navigate('/')}
           className="flex items-center gap-2.5 cursor-pointer group"
         >
-          <div className="w-8 h-8 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-500 group-hover:scale-105 transition">
-            <ShieldAlert className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center p-0.5 group-hover:scale-105 transition overflow-hidden">
+            <img src="/disaster-dhost-logo.png" alt="Disaster Dhost" className="w-full h-full object-contain" />
           </div>
           <div className="hidden sm:block">
             <div className="flex items-center gap-1.5">
-              <span className="font-black text-xs tracking-wider text-white">DISASTER DHOST</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-400 text-[10px] font-extrabold">RESCUE-NETWORK</span>
+              <span className="font-black text-xs tracking-wider text-white">DISASTER <span className="text-amber-500">DHOST</span></span>
+              <span className="px-1.5 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-400 text-[10px] font-extrabold">EMERGENCY RESPONSE</span>
             </div>
-            <p className="text-[10px] text-slate-400">No Login Between a Person and Help</p>
+            <p className="text-[10px] text-slate-400">Emergency Response & Recovery Lifeline</p>
           </div>
         </div>
 

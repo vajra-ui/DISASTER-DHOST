@@ -7,6 +7,8 @@ import { OfflineLogoutModal } from './components/common/OfflineLogoutModal';
 import { DhostPacketInspectorModal } from './components/common/DhostPacketInspectorModal';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
+import { CinematicSplashScreen } from './components/common/CinematicSplashScreen';
+
 // Screens
 import { EmergencyHomeScreen } from './components/home/EmergencyHomeScreen';
 import { VictimEmergencyFlow } from './components/victim/VictimEmergencyFlow';
@@ -22,31 +24,8 @@ import { DisasterSimulationScreen } from './components/simulation/DisasterSimula
 export function App() {
   const [showSplash, setShowSplash] = useState(true);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
   if (showSplash) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center select-none animate-in fade-in duration-300">
-        <div className="space-y-4">
-          <div className="relative mx-auto w-20 h-20 rounded-3xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-2xl shadow-red-950/80 animate-pulse">
-            <span className="text-3xl">🆘</span>
-          </div>
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-white">DISASTER DHOST</h1>
-            <p className="text-xs font-mono text-amber-400">Offline Mesh & Emergency Response</p>
-          </div>
-          <div className="flex items-center justify-center gap-1.5 pt-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="text-[10px] font-mono text-slate-400">Booting Zero-Auth SOS Engine...</span>
-          </div>
-        </div>
-      </div>
-    );
+    return <CinematicSplashScreen onComplete={() => setShowSplash(false)} />;
   }
 
   return (
