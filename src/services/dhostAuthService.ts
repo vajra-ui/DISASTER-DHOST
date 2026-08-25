@@ -138,28 +138,18 @@ class DhostAuthService {
   ): Promise<ResponderUser> {
     const cleanId = responderId.trim().toUpperCase();
     const cleanOrg = organization.trim();
-
-    if (this.networkMode !== 'ONLINE') {
-      const existingTrusted = sessionService.getTrustedSession();
-      if (existingTrusted && existingTrusted.responder.responderId === cleanId) {
-        this.currentUser = existingTrusted.responder;
-        this.authStatus = 'OFFLINE_TRUSTED';
-        this.notify();
-        return existingTrusted.responder;
-      }
-
-      throw new Error(
-        'NETWORK UNAVAILABLE\n\nNew responder verification requires connectivity or authorized local provisioning.\n\n[ REQUEST ACCESS ]'
-      );
-    }
-
     const match = DEMO_RESPONDERS.find(r => r.responderId === cleanId);
+
     if (!match) {
-      throw new Error('Invalid Responder ID. Use demo accounts CMD-001, RSC-1042, or MED-204.');
+      if (this.networkMode !== 'ONLINE') {
+        throw new Error('NETWORK UNAVAILABLE: Unregistered responder ID. Use provisioned units CMD-001, RSC-1042, or MED-204.');
+      }
+      throw new Error('Invalid Responder ID. Use provisioned units CMD-001, RSC-1042, or MED-204.');
     }
 
-    if (pin.trim() !== match.pin && pin.trim() !== 'demo' && pin.trim() !== '123456') {
-      throw new Error('Invalid PIN or Security Credential.');
+    const validPins = [match.pin, match.demoPin, '9900', '1042', '2040', 'demo', '1234', '123456'];
+    if (!validPins.includes(pin.trim())) {
+      throw new Error('Invalid Security PIN. For demo accounts use PIN: 9900');
     }
 
     const responder: ResponderUser = {
@@ -176,12 +166,15 @@ class DhostAuthService {
       currentCoords: { lat: 11.6643, lng: 78.1460 }
     };
 
-    if (trustDevice) {
+    if (trustDevice || this.networkMode !== 'ONLINE') {
       sessionService.saveTrustedSession(responder, false);
     }
 
     this.currentUser = responder;
-    this.authStatus = this.getRoleAuthStatus(responder.role);
+    this.authStatus = this.networkMode === 'ONLINE' 
+      ? this.getRoleAuthStatus(responder.role) 
+      : 'OFFLINE_TRUSTED';
+      
     this.notify();
     return responder;
   }
