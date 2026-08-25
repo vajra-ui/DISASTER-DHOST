@@ -10,7 +10,8 @@ import {
   Sparkles,
   Layers,
   Brain,
-  Play
+  Play,
+  Globe
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDhostAuth } from '../../store/DhostAuthContext';
@@ -18,6 +19,7 @@ import { DemoSwitcherModal } from './DemoSwitcherModal';
 import { RoleService } from '../../services/roleService';
 import { InteractiveKillerDemoModal } from './InteractiveKillerDemoModal';
 import { EmergencyCompilerModal } from './EmergencyCompilerModal';
+import { Dhost3DDigitalTwin } from '../digitaltwin/Dhost3DDigitalTwin';
 
 export const TopSystemBar: React.FC = () => {
   const navigate = useNavigate();
@@ -25,12 +27,14 @@ export const TopSystemBar: React.FC = () => {
     currentUser, 
     networkMode, 
     toggleNetworkMode, 
-    logout 
+    logout,
+    incidents
   } = useDhostAuth();
 
   const [isDemoSwitcherOpen, setIsDemoSwitcherOpen] = useState(false);
   const [isKillerDemoOpen, setIsKillerDemoOpen] = useState(false);
   const [isCompilerOpen, setIsCompilerOpen] = useState(false);
+  const [is3DDigitalTwinOpen, setIs3DDigitalTwinOpen] = useState(false);
 
   const isOffline = networkMode === 'OFFLINE_MESH' || networkMode === 'CELLULAR_DEGRADED';
 
@@ -56,23 +60,32 @@ export const TopSystemBar: React.FC = () => {
             </div>
           </div>
 
-          {/* Center: Killer Demo & Emergency Compiler Launchers */}
+          {/* Center: Killer Demo, 3D Digital Twin & Compiler Launchers */}
           <div className="flex items-center gap-1.5">
             
+            <button
+              onClick={() => setIs3DDigitalTwinOpen(true)}
+              className="px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 active:scale-95 transition"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>🌐 3D Twin</span>
+            </button>
+
             <button
               onClick={() => setIsKillerDemoOpen(true)}
               className="px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-amber-950/50 active:scale-95 transition"
             >
               <Play className="w-3.5 h-3.5 fill-slate-950" />
-              <span>🎬 10/10 Killer Demo</span>
+              <span className="hidden sm:inline">🎬 10/10 Killer Demo</span>
+              <span className="sm:hidden">Demo</span>
             </button>
 
             <button
               onClick={() => setIsCompilerOpen(true)}
-              className="px-2.5 py-1.5 rounded-full bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold text-xs flex items-center gap-1 transition"
+              className="px-2.5 py-1.5 rounded-full bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/40 text-purple-300 font-bold text-xs flex items-center gap-1 transition hidden md:flex"
             >
               <Brain className="w-3.5 h-3.5 text-purple-400" />
-              <span className="hidden md:inline">Emergency Compiler</span>
+              <span>Compiler</span>
             </button>
 
             {/* Network Mode Simulator Toggle */}
@@ -161,7 +174,14 @@ export const TopSystemBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Modals & 3D Digital Twin */}
+      {is3DDigitalTwinOpen && (
+        <Dhost3DDigitalTwin
+          incidents={incidents}
+          onClose={() => setIs3DDigitalTwinOpen(false)}
+        />
+      )}
+
       <DemoSwitcherModal
         isOpen={isDemoSwitcherOpen}
         onClose={() => setIsDemoSwitcherOpen(false)}

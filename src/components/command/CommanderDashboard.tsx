@@ -31,7 +31,8 @@ import {
   Heart,
   Truck,
   Anchor,
-  ArrowRight
+  ArrowRight,
+  Globe
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDhostAuth } from '../../store/DhostAuthContext';
@@ -43,6 +44,7 @@ import { TacticalMapWorkspace } from './TacticalMapWorkspace';
 import { WhatIfSimulatorModal } from './WhatIfSimulatorModal';
 import { ExplainableAiModal } from './ExplainableAiModal';
 import { RescuerLiveGpsModal } from './RescuerLiveGpsModal';
+import { Dhost3DDigitalTwin } from '../digitaltwin/Dhost3DDigitalTwin';
 
 export const CommanderDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -72,6 +74,7 @@ export const CommanderDashboard: React.FC = () => {
   const [isXaiOpen, setIsXaiOpen] = useState(false);
   const [isWhatIfOpen, setIsWhatIfOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
+  const [is3DDigitalTwinOpen, setIs3DDigitalTwinOpen] = useState(false);
 
   // Mayday / Copilot State
   const [maydayDismissed, setMaydayDismissed] = useState(false);
@@ -157,9 +160,17 @@ export const CommanderDashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold flex items-center gap-1.5 border border-emerald-500/30">
+            <button
+              onClick={() => setIs3DDigitalTwinOpen(true)}
+              className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 active:scale-95 transition"
+            >
+              <Globe className="w-4 h-4" />
+              <span>🌐 3D DIGITAL TWIN</span>
+            </button>
+
+            <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold flex items-center gap-1.5 border border-emerald-500/30 hidden sm:flex">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              <span>OFFLINE LORA MESH: 26 NODES</span>
+              <span>26 MESH NODES</span>
             </span>
           </div>
         </div>
@@ -346,11 +357,19 @@ export const CommanderDashboard: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setIs3DDigitalTwinOpen(true)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition shrink-0"
+            >
+              <Globe className="w-4 h-4" />
+              <span>🌐 OPEN 3D DIGITAL TWIN</span>
+            </button>
+
+            <button
               onClick={() => setIsTacticalMapOpen(true)}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition shrink-0"
+              className="px-3.5 py-2 rounded-xl bg-blue-600/30 hover:bg-blue-600/40 border border-blue-500/40 text-blue-300 font-bold text-xs flex items-center gap-1.5 transition shrink-0"
             >
               <Compass className="w-4 h-4" />
-              <span>OPEN FULL-SCREEN TACTICAL MAP</span>
+              <span>2D GIS Map</span>
             </button>
 
             <button
@@ -469,9 +488,21 @@ export const CommanderDashboard: React.FC = () => {
       </div>
 
       {/* ======================================================== */}
-      {/* 5. MODALS & POPUPS                                       */}
+      {/* 5. MODALS & 3D DIGITAL TWIN WORKSPACE                    */}
       {/* ======================================================== */}
       
+      {/* Full-Screen 3D Digital Twin Hero Workspace */}
+      {is3DDigitalTwinOpen && (
+        <Dhost3DDigitalTwin
+          incidents={incidents}
+          onSelectIncident={(pkt) => {
+            setIs3DDigitalTwinOpen(false);
+            setActNowPacket(pkt);
+          }}
+          onClose={() => setIs3DDigitalTwinOpen(false)}
+        />
+      )}
+
       {/* Rescuer Live GPS Tracker Modal */}
       <RescuerLiveGpsModal
         packet={selectedGpsPacket}
