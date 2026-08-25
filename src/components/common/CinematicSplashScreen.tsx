@@ -6,9 +6,12 @@ interface Props {
 
 export const CinematicSplashScreen: React.FC<Props> = ({ onComplete }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [phase, setPhase] = useState<'CRISIS' | 'TRANSITION' | 'RECOVERY'>('CRISIS');
+  const [phase, setPhase] = useState<'CRISIS' | 'SHIFT' | 'RELIEF'>('CRISIS');
   const [progress, setProgress] = useState(0);
   const [isFadingOut, setIsFadingOut] = useState(false);
+
+  // Camera Handheld Shake offsets
+  const [cameraTransform, setCameraTransform] = useState({ x: 0, y: 0, rotate: 0, scale: 1 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -27,190 +30,269 @@ export const CinematicSplashScreen: React.FC<Props> = ({ onComplete }) => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Rain particles for Phase 1
-    const rainCount = 180;
-    const rainDrops: Array<{ x: number; y: number; l: number; xs: number; ys: number; opacity: number }> = [];
+    // 1. Heavy rain streaks for Crisis phase
+    const rainCount = 220;
+    const rainStreaks: Array<{ x: number; y: number; length: number; speedX: number; speedY: number; opacity: number }> = [];
     for (let i = 0; i < rainCount; i++) {
-      rainDrops.push({
+      rainStreaks.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        l: Math.random() * 25 + 15,
-        xs: -3 - Math.random() * 2,
-        ys: 12 + Math.random() * 10,
-        opacity: Math.random() * 0.4 + 0.3
+        length: Math.random() * 35 + 20,
+        speedX: -4 - Math.random() * 3,
+        speedY: 16 + Math.random() * 12,
+        opacity: Math.random() * 0.5 + 0.25
       });
     }
 
-    // Floating recovery light particles for Phase 3
-    const lightMotesCount = 45;
+    // 2. Realistic Lens Droplets (water beads sticking to camera lens)
+    const dropletCount = 28;
+    const lensDroplets: Array<{ x: number; y: number; radius: number; trailLength: number; dripSpeed: number; opacity: number }> = [];
+    for (let i = 0; i < dropletCount; i++) {
+      lensDroplets.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: Math.random() * 5 + 2,
+        trailLength: Math.random() * 30 + 10,
+        dripSpeed: Math.random() * 1.5 + 0.5,
+        opacity: Math.random() * 0.6 + 0.3
+      });
+    }
+
+    // 3. Floating debris in floodwater (Crisis silhouette)
+    const debris = [
+      { x: width * 0.2, y: height * 0.75, width: 45, height: 14, speed: 0.6, bob: 0 },
+      { x: width * 0.6, y: height * 0.82, width: 70, height: 18, speed: 0.8, bob: 1.5 },
+      { x: width * 0.85, y: height * 0.78, width: 35, height: 12, speed: 0.5, bob: 3.0 }
+    ];
+
+    // 4. Golden hour morning light motes for Relief phase
+    const lightMotesCount = 50;
     const lightMotes: Array<{ x: number; y: number; radius: number; speedY: number; opacity: number; pulse: number }> = [];
     for (let i = 0; i < lightMotesCount; i++) {
       lightMotes.push({
         x: Math.random() * width,
         y: Math.random() * height,
         radius: Math.random() * 3 + 1,
-        speedY: -(Math.random() * 0.8 + 0.3),
+        speedY: -(Math.random() * 0.7 + 0.3),
         opacity: Math.random() * 0.6 + 0.2,
         pulse: Math.random() * Math.PI
       });
     }
 
-    // Shockwave rings for Phase 2
-    let shockwaveRadius = 0;
-    let shockwaveOpacity = 1;
-
-    // Lightning parameters
-    let lightningIntensity = 0;
-    let lastLightning = 0;
+    // Lightning & flare state
+    let lightningFlash = 0;
+    let lastLightningTime = 0;
 
     const startTime = performance.now();
-    const duration = 4200; // 4.2 seconds cinematic duration
+    const duration = 4400; // 4.4 seconds total sequence
 
     const render = (now: number) => {
       const elapsed = now - startTime;
       const t = Math.min(elapsed / duration, 1);
       setProgress(Math.round(t * 100));
 
-      // Phase calculation
-      if (elapsed < 1200) {
-        setPhase('CRISIS');
-      } else if (elapsed < 2800) {
-        setPhase('TRANSITION');
+      // Handheld Shaky Cam calculation
+      if (elapsed < 2000) {
+        // Handheld documentary vibration
+        const shakeX = (Math.sin(elapsed * 0.015) * 4 + Math.sin(elapsed * 0.035) * 2) * (1 - elapsed / 2800);
+        const shakeY = (Math.cos(elapsed * 0.012) * 5 + Math.cos(elapsed * 0.028) * 3) * (1 - elapsed / 2800);
+        const rotate = (Math.sin(elapsed * 0.008) * 0.8) * (1 - elapsed / 2800);
+        setCameraTransform({ x: shakeX, y: shakeY, rotate, scale: 1.02 });
       } else {
-        setPhase('RECOVERY');
+        // Smooth stabilized dolly zoom
+        const dollyProgress = (elapsed - 2000) / 2400;
+        setCameraTransform({ x: 0, y: 0, rotate: 0, scale: 1 + dollyProgress * 0.04 });
+      }
+
+      // Phase identification
+      if (elapsed < 2000) {
+        setPhase('CRISIS');
+      } else if (elapsed < 3000) {
+        setPhase('SHIFT');
+      } else {
+        setPhase('RELIEF');
       }
 
       ctx.clearRect(0, 0, width, height);
 
       // ========================================================
-      // 1. DYNAMIC BACKGROUND COLOR INTERPOLATION
+      // 0:00 – 0:02 (THE REALITY OF CRISIS: FLOODED STREET, RAIN, LIGHTNING)
       // ========================================================
-      if (elapsed < 1200) {
-        // CRISIS: Dark Dystopian Storm (Black to deep navy / stormy crimson)
-        const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 50, width / 2, height / 2, width * 0.8);
-        bgGrad.addColorStop(0, '#0f172a');
-        bgGrad.addColorStop(0.6, '#050914');
-        bgGrad.addColorStop(1, '#020408');
+      if (elapsed < 2000) {
+        // Cold moody desaturated color grading
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, '#090d16');
+        bgGrad.addColorStop(0.55, '#0b1322');
+        bgGrad.addColorStop(0.65, '#0d1d33'); // Floodwater waterline
+        bgGrad.addColorStop(1, '#050c18');
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, width, height);
 
-        // Periodic Lightning flash
-        if (now - lastLightning > 450 && Math.random() < 0.15) {
-          lightningIntensity = 0.85;
-          lastLightning = now;
+        // Flooded street dark water surface reflection
+        const waterY = height * 0.65;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+        ctx.fillRect(0, waterY, width, height - waterY);
+
+        // Water surface ripples
+        ctx.strokeStyle = 'rgba(147, 197, 253, 0.15)';
+        ctx.lineWidth = 1;
+        for (let y = waterY + 10; y < height; y += 18) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + Math.sin(now * 0.003 + y) * 2);
+          ctx.bezierCurveTo(
+            width * 0.3, y + Math.cos(now * 0.004 + y) * 3,
+            width * 0.7, y + Math.sin(now * 0.005 + y) * 2,
+            width, y
+          );
+          ctx.stroke();
         }
-        if (lightningIntensity > 0) {
-          ctx.fillStyle = `rgba(224, 242, 254, ${lightningIntensity * 0.4})`;
+
+        // Floating debris silhouettes
+        for (let d of debris) {
+          d.bob += 0.04;
+          const currentY = d.y + Math.sin(d.bob) * 3;
+          ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(d.x, currentY, d.width, d.height, 4);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+          ctx.stroke();
+          d.x -= d.speed;
+          if (d.x < -100) d.x = width + 50;
+        }
+
+        // Random Realistic Lightning Flash
+        if (now - lastLightningTime > 550 && Math.random() < 0.2) {
+          lightningFlash = 0.9;
+          lastLightningTime = now;
+        }
+        if (lightningFlash > 0) {
+          ctx.fillStyle = `rgba(224, 242, 254, ${lightningFlash * 0.35})`;
           ctx.fillRect(0, 0, width, height);
-          lightningIntensity *= 0.82;
+          lightningFlash *= 0.84;
         }
 
         // Heavy Rain streaks
-        ctx.strokeStyle = 'rgba(186, 230, 253, 0.4)';
-        ctx.lineWidth = 1.5;
-        for (let i = 0; i < rainDrops.length; i++) {
-          const r = rainDrops[i];
+        ctx.strokeStyle = 'rgba(186, 230, 253, 0.35)';
+        ctx.lineWidth = 1.6;
+        for (let r of rainStreaks) {
           ctx.beginPath();
           ctx.moveTo(r.x, r.y);
-          ctx.lineTo(r.x + r.xs, r.y + r.l);
+          ctx.lineTo(r.x + r.speedX, r.y + r.length);
           ctx.stroke();
-          r.x += r.xs;
-          r.y += r.ys;
+          r.x += r.speedX;
+          r.y += r.speedY;
           if (r.y > height) {
-            r.y = -20;
+            r.y = -30;
             r.x = Math.random() * width;
           }
         }
-      } else if (elapsed < 2800) {
-        // TRANSITION: Storm clearing, intense cyan & orange radiant light burst
-        const transitionProgress = (elapsed - 1200) / 1600;
-        const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, width * 0.9);
-        
-        const centerR = Math.round(15 + transitionProgress * 30);
-        const centerG = Math.round(23 + transitionProgress * 65);
-        const centerB = Math.round(42 + transitionProgress * 110);
-        
-        bgGrad.addColorStop(0, `rgb(${centerR + 60}, ${centerG + 80}, ${centerB + 100})`);
-        bgGrad.addColorStop(0.4, `rgb(${centerR}, ${centerG}, ${centerB})`);
+
+        // Realistic Water Droplets dripping on Camera Lens
+        for (let d of lensDroplets) {
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${d.opacity * 0.3})`;
+          ctx.fill();
+          ctx.strokeStyle = `rgba(186, 230, 253, ${d.opacity * 0.6})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Droplet tail
+          ctx.beginPath();
+          ctx.moveTo(d.x, d.y - d.radius);
+          ctx.lineTo(d.x, d.y - d.trailLength);
+          ctx.strokeStyle = `rgba(186, 230, 253, ${d.opacity * 0.2})`;
+          ctx.stroke();
+
+          d.y += d.dripSpeed;
+          if (d.y > height + 20) {
+            d.y = -10;
+            d.x = Math.random() * width;
+          }
+        }
+      }
+      // ========================================================
+      // 0:02 – 0:03 (THE NATURAL SHIFT: STORM CLEARS, CINEMATIC ANAMORPHIC LENS FLARE)
+      // ========================================================
+      else if (elapsed < 3000) {
+        const shiftProgress = (elapsed - 2000) / 1000;
+
+        // Sky transition from storm to golden blue
+        const bgGrad = ctx.createRadialGradient(
+          width * (0.3 + shiftProgress * 0.4), height * 0.3, 10,
+          width / 2, height / 2, width * 0.9
+        );
+        bgGrad.addColorStop(0, `rgba(251, 146, 60, ${0.4 * shiftProgress})`);
+        bgGrad.addColorStop(0.3, `rgba(30, 58, 138, ${0.8 - shiftProgress * 0.3})`);
         bgGrad.addColorStop(1, '#020617');
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, width, height);
 
-        // Radiant Light Rays
-        const rayCount = 12;
+        // Anamorphic Golden Lens Flare Streak cutting across frame
+        const flareY = height * 0.38;
+        const flareGrad = ctx.createLinearGradient(0, flareY, width, flareY);
+        flareGrad.addColorStop(0, 'rgba(251, 146, 60, 0)');
+        flareGrad.addColorStop(0.4, `rgba(253, 224, 71, ${0.7 * shiftProgress})`);
+        flareGrad.addColorStop(0.5, `rgba(255, 255, 255, ${0.9 * shiftProgress})`);
+        flareGrad.addColorStop(0.6, `rgba(56, 189, 248, ${0.7 * shiftProgress})`);
+        flareGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+
         ctx.save();
-        ctx.translate(width / 2, height / 2);
-        ctx.rotate(elapsed * 0.0008);
-        for (let r = 0; r < rayCount; r++) {
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          const angle1 = (r * 2 * Math.PI) / rayCount;
-          const angle2 = angle1 + 0.18;
-          ctx.arc(0, 0, width, angle1, angle2);
-          ctx.closePath();
-          ctx.fillStyle = `rgba(249, 115, 22, ${0.08 * (1 - transitionProgress) + 0.05})`;
-          ctx.fill();
-        }
+        ctx.translate(width / 2, flareY);
+        ctx.rotate(-0.06);
+        ctx.fillStyle = flareGrad;
+        ctx.fillRect(-width, -8 * shiftProgress, width * 2, 16 * shiftProgress);
         ctx.restore();
 
-        // Expanding Energy Shockwave Rings
-        shockwaveRadius += 9;
-        shockwaveOpacity = Math.max(0, 1 - (shockwaveRadius / (width * 0.75)));
-        if (shockwaveOpacity > 0) {
-          ctx.beginPath();
-          ctx.arc(width / 2, height / 2, shockwaveRadius, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(56, 189, 248, ${shockwaveOpacity * 0.8})`;
-          ctx.lineWidth = 4;
-          ctx.stroke();
+        // Expanding Light Bloom
+        const bloomGrad = ctx.createRadialGradient(width * 0.5, flareY, 0, width * 0.5, flareY, 180 * shiftProgress);
+        bloomGrad.addColorStop(0, `rgba(255, 255, 255, ${0.8 * shiftProgress})`);
+        bloomGrad.addColorStop(0.4, `rgba(251, 146, 60, ${0.4 * shiftProgress})`);
+        bloomGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = bloomGrad;
+        ctx.beginPath();
+        ctx.arc(width * 0.5, flareY, 180 * shiftProgress, 0, Math.PI * 2);
+        ctx.fill();
 
+        // Evaporating rain droplets
+        const fadeDroplets = 1 - shiftProgress;
+        for (let d of lensDroplets) {
           ctx.beginPath();
-          ctx.arc(width / 2, height / 2, Math.max(0, shockwaveRadius - 40), 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(251, 146, 60, ${shockwaveOpacity * 0.6})`;
-          ctx.lineWidth = 3;
-          ctx.stroke();
+          ctx.arc(d.x, d.y, d.radius * fadeDroplets, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${d.opacity * fadeDroplets * 0.4})`;
+          ctx.fill();
         }
-
-        // Dissolving Rain
-        const fadeRain = 1 - transitionProgress;
-        ctx.strokeStyle = `rgba(186, 230, 253, ${0.3 * fadeRain})`;
-        ctx.lineWidth = 1;
-        for (let i = 0; i < rainDrops.length; i++) {
-          const r = rainDrops[i];
-          ctx.beginPath();
-          ctx.moveTo(r.x, r.y);
-          ctx.lineTo(r.x + r.xs, r.y + r.l * fadeRain);
-          ctx.stroke();
-          r.x += r.xs;
-          r.y += r.ys;
-        }
-      } else {
-        // RECOVERY: Serene, bright hopeful blue sky with warm golden sunlight
-        const recProgress = (elapsed - 2800) / 1400;
-        const bgGrad = ctx.createRadialGradient(width / 2, height * 0.35, 80, width / 2, height / 2, width * 0.8);
-        bgGrad.addColorStop(0, '#0c192e');
-        bgGrad.addColorStop(0.5, '#070f1e');
+      }
+      // ========================================================
+      // 0:03 – 0:04.4 (THE POINT OF RELIEF & BRUSHED METAL 3D EMBLEM)
+      // ========================================================
+      else {
+        // Pristine morning atmosphere
+        const bgGrad = ctx.createRadialGradient(width * 0.5, height * 0.35, 50, width / 2, height / 2, width * 0.85);
+        bgGrad.addColorStop(0, '#111827');
+        bgGrad.addColorStop(0.5, '#090d16');
         bgGrad.addColorStop(1, '#020617');
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, width, height);
 
-        // Golden Sun Glow in Top-Right
-        const sunGrad = ctx.createRadialGradient(width * 0.65, height * 0.3, 10, width * 0.65, height * 0.3, width * 0.5);
-        sunGrad.addColorStop(0, 'rgba(251, 146, 60, 0.25)');
-        sunGrad.addColorStop(0.5, 'rgba(245, 158, 11, 0.08)');
-        sunGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = sunGrad;
+        // Warm directional golden hour sunbeam from top-left
+        const sunbeam = ctx.createRadialGradient(width * 0.3, height * 0.1, 20, width * 0.5, height * 0.5, width * 0.6);
+        sunbeam.addColorStop(0, 'rgba(251, 146, 60, 0.25)');
+        sunbeam.addColorStop(0.6, 'rgba(245, 158, 11, 0.05)');
+        sunbeam.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = sunbeam;
         ctx.fillRect(0, 0, width, height);
 
-        // Floating Golden Motes
-        for (let i = 0; i < lightMotes.length; i++) {
-          const m = lightMotes[i];
-          m.pulse += 0.05;
-          const currentAlpha = m.opacity * (0.6 + 0.4 * Math.sin(m.pulse));
+        // Floating morning dust particles
+        for (let m of lightMotes) {
+          m.pulse += 0.04;
+          const alpha = m.opacity * (0.6 + 0.4 * Math.sin(m.pulse));
           ctx.beginPath();
           ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(253, 224, 71, ${currentAlpha})`;
-          ctx.shadowColor = '#facc15';
-          ctx.shadowBlur = 8;
+          ctx.fillStyle = `rgba(253, 224, 71, ${alpha})`;
+          ctx.shadowColor = '#f59e0b';
+          ctx.shadowBlur = 6;
           ctx.fill();
           ctx.shadowBlur = 0;
 
@@ -250,73 +332,72 @@ export const CinematicSplashScreen: React.FC<Props> = ({ onComplete }) => {
         isFadingOut ? 'opacity-0 pointer-events-none scale-105' : 'opacity-100'
       }`}
     >
-      {/* Background Interactive Canvas */}
+      {/* Background Interactive Documentary Canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
 
-      {/* Top Right Skip Button */}
+      {/* Top Right Skip Intro Button */}
       <button
         onClick={handleEnd}
-        className="absolute top-5 right-5 z-20 px-3.5 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs font-bold tracking-wide backdrop-blur-md transition active:scale-95 flex items-center gap-1.5 shadow-lg"
+        className="absolute top-5 right-5 z-30 px-3.5 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-xs font-bold tracking-wide backdrop-blur-md transition active:scale-95 flex items-center gap-1.5 shadow-lg"
       >
         <span>Skip Intro</span>
         <span>→</span>
       </button>
 
-      {/* Center Cinematic Emblem & Typography */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center p-6 space-y-6 max-w-lg mx-auto">
-        
-        {/* Glowing 3D Shield Logo Centerpiece */}
-        <div className="relative group">
-          
-          {/* Animated Shockwave Pulse Glow */}
-          <div
-            className={`absolute -inset-6 rounded-full blur-2xl transition-all duration-700 ${
-              phase === 'CRISIS'
-                ? 'bg-red-600/30 animate-pulse'
-                : phase === 'TRANSITION'
-                ? 'bg-gradient-to-tr from-amber-500/50 via-cyan-400/50 to-orange-500/60 scale-125'
-                : 'bg-gradient-to-tr from-amber-500/30 to-blue-500/30 scale-105'
-            }`}
-          />
+      {/* Centerpiece 3D Brushed Metal Emblem & Typography */}
+      <div
+        className="relative z-20 flex flex-col items-center justify-center text-center p-6 space-y-6 max-w-lg mx-auto transition-transform duration-75"
+        style={{
+          transform: `translate(${cameraTransform.x}px, ${cameraTransform.y}px) rotate(${cameraTransform.rotate}deg) scale(${cameraTransform.scale})`
+        }}
+      >
+        {/* Dynamic Halo Glow behind Physical Emblem */}
+        <div
+          className={`absolute -inset-10 rounded-full blur-3xl transition-all duration-1000 ${
+            phase === 'CRISIS'
+              ? 'bg-red-600/20 animate-pulse'
+              : phase === 'SHIFT'
+              ? 'bg-gradient-to-tr from-amber-500/50 via-cyan-400/40 to-orange-500/60 scale-125'
+              : 'bg-gradient-to-tr from-amber-500/30 via-slate-700/20 to-blue-500/30 scale-110'
+          }`}
+        />
 
-          {/* Logo Container with 3D Depth & Camera Zoom */}
-          <div
-            className={`relative transition-all duration-1000 transform ${
-              phase === 'CRISIS'
-                ? 'scale-90 brightness-90 filter drop-shadow-[0_0_20px_rgba(239,68,68,0.4)]'
-                : phase === 'TRANSITION'
-                ? 'scale-110 brightness-125 filter drop-shadow-[0_0_40px_rgba(249,115,22,0.8)]'
-                : 'scale-100 brightness-110 filter drop-shadow-[0_0_30px_rgba(56,189,248,0.5)]'
-            }`}
-          >
-            <img
-              src="/disaster-dhost-logo.png"
-              alt="DISASTER DHOST Emergency Response & Recovery"
-              className="w-48 sm:w-60 h-auto object-contain mx-auto drop-shadow-2xl select-none pointer-events-none"
-              onError={(e) => {
-                // Fallback SVG if image not found
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </div>
+        {/* Photorealistic 3D Metallic Emblem Card */}
+        <div
+          className={`relative transition-all duration-1000 transform ${
+            phase === 'CRISIS'
+              ? 'scale-90 brightness-75 contrast-125 filter drop-shadow-[0_10px_25px_rgba(0,0,0,0.8)]'
+              : phase === 'SHIFT'
+              ? 'scale-105 brightness-125 contrast-110 filter drop-shadow-[0_15px_35px_rgba(245,158,11,0.6)]'
+              : 'scale-100 brightness-105 contrast-105 filter drop-shadow-[0_20px_40px_rgba(0,0,0,0.9)]'
+          }`}
+        >
+          <img
+            src="/disaster-dhost-hero-logo.png"
+            alt="DISASTER DHOST - RESPONSE. RESILIENCE. RECOVERY."
+            className="w-56 sm:w-72 h-auto object-contain mx-auto select-none pointer-events-none rounded-2xl"
+            onError={(e) => {
+              e.currentTarget.src = '/disaster-dhost-logo.png';
+            }}
+          />
         </div>
 
-        {/* Phase Status Sub-ticker */}
-        <div className="space-y-1.5 pt-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 backdrop-blur-md shadow-xl">
+        {/* Phase Status Subtitle */}
+        <div className="space-y-2 pt-1">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 backdrop-blur-md shadow-xl">
             <span
               className={`w-2 h-2 rounded-full ${
                 phase === 'CRISIS'
                   ? 'bg-red-500 animate-ping'
-                  : phase === 'TRANSITION'
+                  : phase === 'SHIFT'
                   ? 'bg-amber-400 animate-pulse'
                   : 'bg-emerald-400'
               }`}
             />
             <span className="text-[11px] font-mono font-black uppercase tracking-widest text-slate-200">
-              {phase === 'CRISIS' && 'CRISIS DETECTED • INITIALIZING MESH'}
-              {phase === 'TRANSITION' && 'RESCUE SHOCKWAVE • DEPLOYING NODES'}
-              {phase === 'RECOVERY' && 'RESILIENCE ESTABLISHED • LIFELINE READY'}
+              {phase === 'CRISIS' && 'CRISIS DETECTED • ROOFTOP SURVEILLANCE'}
+              {phase === 'SHIFT' && 'WEATHER SHIFT • LENS FLARE DISPERSION'}
+              {phase === 'RELIEF' && 'RESPONSE • RESILIENCE • RECOVERY'}
             </span>
           </div>
         </div>
@@ -328,12 +409,11 @@ export const CinematicSplashScreen: React.FC<Props> = ({ onComplete }) => {
             style={{ width: `${progress}%` }}
           />
         </div>
-
       </div>
 
-      {/* Bottom Emergency Readiness Tagline */}
-      <div className="absolute bottom-6 text-center text-slate-500 text-[10px] font-mono tracking-wider">
-        NO LOGIN BETWEEN A PERSON AND HELP • ZERO AUTH RESCUE PROTOCOL
+      {/* Bottom Mission Tagline */}
+      <div className="absolute bottom-5 text-center text-slate-500 text-[10px] font-mono tracking-wider">
+        NO LOGIN BETWEEN A PERSON AND HELP • ZERO AUTH PROTOCOL
       </div>
     </div>
   );
