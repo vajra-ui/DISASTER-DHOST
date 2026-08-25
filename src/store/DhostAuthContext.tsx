@@ -21,6 +21,7 @@ interface DhostAuthContextType {
   // Authentication
   currentUser: ResponderUser | null;
   authStatus: AuthStatus;
+  isAuthenticated: boolean;
   networkMode: NetworkMode;
   setNetworkMode: (mode: NetworkMode) => void;
   login: (organization: string, responderId: string, pin: string, trustDevice?: boolean) => Promise<ResponderUser>;
@@ -195,6 +196,7 @@ export const DhostAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       value={{
         currentUser,
         authStatus,
+        isAuthenticated: currentUser !== null && (authStatus === 'AUTHENTICATED' || authStatus === 'OFFLINE_AUTHENTICATED'),
         networkMode,
         setNetworkMode,
         login,
