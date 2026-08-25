@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   AlertOctagon, 
   CheckCircle2, 
@@ -13,7 +13,11 @@ import {
   Battery,
   Navigation,
   Radio,
-  Volume2
+  Volume2,
+  Lock,
+  Sparkles,
+  Compass,
+  AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDhostAuth } from '../../store/DhostAuthContext';
@@ -28,8 +32,6 @@ export const EmergencyHomeScreen: React.FC = () => {
     addIncident,
     getLiveCoordinates,
     getBatteryLevel,
-    playRescueSiren,
-    stopRescueSiren,
     startVoiceSos
   } = useDhostAuth();
 
@@ -37,23 +39,29 @@ export const EmergencyHomeScreen: React.FC = () => {
   const [isListeningVoice, setIsListeningVoice] = useState(false);
   const [voiceText, setVoiceText] = useState('');
   const [stopVoiceFn, setStopVoiceFn] = useState<(() => void) | null>(null);
-  const [liveLocation, setLiveLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const [liveLocation, setLiveLocation] = useState<{ lat: number; lng: number; address: string; accuracyMeters: number } | null>(null);
   const [batteryPct, setBatteryPct] = useState<number>(85);
 
+  // Press & Hold 2-Second State
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [isHolding, setIsHolding] = useState(false);
+  const holdIntervalRef = useRef<any>(null);
+
   useEffect(() => {
-    // Read real battery & coordinates
     setBatteryPct(getBatteryLevel());
     getLiveCoordinates().then((loc) => {
       setLiveLocation({
         lat: loc.lat,
         lng: loc.lng,
-        address: loc.address
+        address: loc.address,
+        accuracyMeters: loc.accuracyMeters || 12
       });
     });
   }, []);
 
-  // Quick 1-Tap SOS Dispatcher (Zero friction, real GPS)
+  // Quick 1-Tap SOS Dispatcher
   const handleQuickSos = async (type: IncidentType = 'FLOOD_TRAPPED', text?: string) => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       const loc = await getLiveCoordinates();
@@ -64,19 +72,46 @@ export const EmergencyHomeScreen: React.FC = () => {
           type === 'MEDICAL_CRITICAL' ? 'Severe Medical Emergency - Urgent Paramedic / First Aid Required' :
           type === 'STRUCTURAL_COLLAPSE' ? 'Building / Roof Collapse - Trapped under debris' :
           type === 'FIRE_HAZARD' ? 'Active Fire Hazard / Live High Voltage Wires' :
-          'Life Safety Emergency Assistance Request'
+          'Zero-Input SOS Broadcasted - Emergency Rescue Required'
         ),
         peopleCount: 1,
         location: loc,
         batteryLevel: batteryPct
       });
-      // Navigate to live beacon tracker
       navigate('/victim', { state: { activeIncident: newPacket } });
     } catch {
       navigate('/victim');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Hold 2 Seconds Handlers
+  const startHold = () => {
+    setIsHolding(true);
+    setHoldProgress(0);
+    const startTime = Date.now();
+    const duration = 1800; // 1.8 seconds hold
+
+    holdIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(100, (elapsed / duration) * 100);
+      setHoldProgress(progress);
+
+      if (progress >= 100) {
+        clearInterval(holdIntervalRef.current);
+        setIsHolding(false);
+        // Trigger haptic vibration if supported
+        if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+        handleQuickSos('FLOOD_TRAPPED', 'Zero-Input 2-Second Hold Emergency SOS');
+      }
+    }, 30);
+  };
+
+  const cancelHold = () => {
+    if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
+    setIsHolding(false);
+    setHoldProgress(0);
   };
 
   // Voice SOS Toggle
@@ -107,20 +142,21 @@ export const EmergencyHomeScreen: React.FC = () => {
     }
   };
 
-  const recentIncidents = incidents.slice(0, 2);
-
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-black text-slate-100 flex flex-col justify-between p-4 max-w-md mx-auto space-y-5 select-none animate-in fade-in duration-200">
+    <div className="min-h-[calc(100vh-56px)] bg-black text-slate-100 flex flex-col justify-between p-4 max-w-md mx-auto space-y-4 select-none animate-in fade-in duration-200">
       
       {/* Top Device Live Telemetry Bar */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         
+        {/* Multi-Signal Sensor Fusion Status */}
         <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs shadow-md">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             <div className="flex items-center gap-1.5 font-mono text-slate-300">
               <Navigation className="w-3.5 h-3.5 text-blue-400" />
-              <span>{liveLocation ? `${liveLocation.lat.toFixed(4)}, ${liveLocation.lng.toFixed(4)}` : 'Acquiring GPS...'}</span>
+              <span>
+                {liveLocation ? `GPS ±${liveLocation.accuracyMeters}m (HIGH)` : 'Acquiring Fix...'}
+              </span>
             </div>
           </div>
           
@@ -137,195 +173,149 @@ export const EmergencyHomeScreen: React.FC = () => {
 
         {/* Core Question & Zero-Auth Banner */}
         <div className="text-center space-y-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-950/80 border border-red-500/50 text-red-400 text-xs font-black">
-            <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span>DISASTER LIFELINE • ZERO AUTH PROTOCOL</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-950/80 border border-red-500/50 text-red-400 text-[11px] font-black">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+            <span>ZERO-AUTH EMERGENCY PROTOCOL</span>
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-white pt-1">
-            DO YOU NEED HELP?
+          <h1 className="text-xl font-black text-white tracking-tight">
+            DO YOU NEED IMMEDIATE RESCUE?
           </h1>
-          <p className="text-xs text-slate-400">
-            No login or password. 1-Tap transmits your live GPS across the disaster mesh.
+          <p className="text-[11px] text-slate-400">
+            Press once or hold 2s for Zero-Input Beacon
           </p>
-        </div>
-
-        {/* 1. GIANT 1-TAP BIG PANIC BEACON BUTTON */}
-        <div className="pt-1">
-          <button
-            onClick={() => handleQuickSos('FLOOD_TRAPPED')}
-            disabled={isSubmitting}
-            className="w-full py-7 rounded-3xl bg-gradient-to-br from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 active:scale-95 text-white shadow-2xl shadow-red-900/80 border-2 border-red-400/60 flex flex-col items-center justify-center gap-2 transition group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition shadow-inner">
-                <AlertOctagon className="w-8 h-8 text-white animate-pulse" />
-              </div>
-              <div className="text-left">
-                <span className="text-2xl sm:text-3xl font-black tracking-wider block">🆘 I NEED HELP</span>
-                <span className="text-[11px] text-red-100 font-bold block">1-Tap Instant Rescue Dispatch</span>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        {/* 2. REAL VOICE DISTRESS SOS MIC */}
-        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Mic className={`w-4 h-4 ${isListeningVoice ? 'text-red-400 animate-bounce' : 'text-amber-400'}`} />
-              <span className="text-xs font-black text-white">Voice Distress Mic (Tamil / Hindi / English)</span>
-            </div>
-            <button
-              onClick={toggleVoiceSos}
-              className={`px-3 py-1 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition ${
-                isListeningVoice 
-                  ? 'bg-red-600 text-white animate-pulse' 
-                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
-              }`}
-            >
-              {isListeningVoice ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-              <span>{isListeningVoice ? 'Stop & Send SOS' : 'Tap to Speak'}</span>
-            </button>
-          </div>
-          {isListeningVoice && (
-            <div className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/40 text-xs font-mono text-red-200">
-              {voiceText ? `🎙️ "${voiceText}"` : 'Listening... Speak your emergency (e.g. "Trapped in flood with 3 family members")'}
-            </div>
-          )}
-        </div>
-
-        {/* 3. FOUR 1-TAP VISUAL SCENARIO TILES */}
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-            OR CHOOSE SPECIFIC SITUATION:
-          </p>
-          <div className="grid grid-cols-2 gap-2.5">
-            
-            <button
-              onClick={() => handleQuickSos('FLOOD_TRAPPED')}
-              className="p-3 rounded-2xl bg-blue-950/40 hover:bg-blue-900/60 border border-blue-500/40 active:scale-95 text-left transition flex items-center gap-2.5"
-            >
-              <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                <Waves className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-white">🌊 Flood Water</p>
-                <p className="text-[10px] text-blue-200/70">Rising / Stranded</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => handleQuickSos('MEDICAL_CRITICAL')}
-              className="p-3 rounded-2xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 active:scale-95 text-left transition flex items-center gap-2.5"
-            >
-              <div className="w-9 h-9 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
-                <HeartPulse className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-white">🩺 Medical Injury</p>
-                <p className="text-[10px] text-rose-200/70">Critical / Trauma</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => handleQuickSos('STRUCTURAL_COLLAPSE')}
-              className="p-3 rounded-2xl bg-amber-950/40 hover:bg-amber-900/60 border border-amber-500/40 active:scale-95 text-left transition flex items-center gap-2.5"
-            >
-              <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-white">🏚️ Collapse</p>
-                <p className="text-[10px] text-amber-200/70">Trapped in debris</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => handleQuickSos('FIRE_HAZARD')}
-              className="p-3 rounded-2xl bg-orange-950/40 hover:bg-orange-900/60 border border-orange-500/40 active:scale-95 text-left transition flex items-center gap-2.5"
-            >
-              <div className="w-9 h-9 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 shrink-0">
-                <Flame className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-white">⚡ Fire / Wires</p>
-                <p className="text-[10px] text-orange-200/70">Hazard / Sparking</p>
-              </div>
-            </button>
-
-          </div>
-        </div>
-
-        {/* 4. CITIZEN SAFE & COMMUNITY REPORT BUTTONS */}
-        <div className="grid grid-cols-2 gap-2.5 pt-1">
-          <button
-            onClick={() => navigate('/safe')}
-            className="py-3.5 px-3 rounded-2xl bg-slate-900 border border-emerald-500/40 hover:bg-emerald-950/20 text-left flex items-center gap-2.5 active:scale-95 transition"
-          >
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-white">🟢 I'M SAFE</p>
-              <p className="text-[10px] text-slate-400">Mark yourself safe</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => navigate('/help-others')}
-            className="py-3.5 px-3 rounded-2xl bg-slate-900 border border-purple-500/40 hover:bg-purple-950/20 text-left flex items-center gap-2.5 active:scale-95 transition"
-          >
-            <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-              <HeartHandshake className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-white">🤝 HELP OTHERS</p>
-              <p className="text-[10px] text-slate-400">Report stranded people</p>
-            </div>
-          </button>
-        </div>
-
-        {/* Nearby Mesh Beacons Live Stream */}
-        <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800/90 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-slate-400 text-[11px]">ACTIVE LOCAL MESH RELAYS:</span>
-            <span className="text-[10px] font-mono text-emerald-400">REAL-TIME BUS</span>
-          </div>
-
-          <div className="space-y-1.5">
-            {recentIncidents.map((inc) => (
-              <div 
-                key={inc.incidentId}
-                onClick={() => openPacketInspector(inc)}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-2 cursor-pointer transition"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-400" />
-                  <div>
-                    <p className="text-xs font-bold text-slate-200">{inc.incidentCategoryLabel}</p>
-                    <p className="text-[10px] text-slate-500">{inc.location?.address || 'Disaster Zone'} • <span className="font-mono">{inc.hopCount}-Hop</span></p>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono">
-                  {inc.incidentId}
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
 
       </div>
 
-      {/* UNOBTRUSIVE RESPONDER ACCESS AT BOTTOM */}
-      <div className="pt-2 pb-1 text-center">
-        <div className="w-12 h-0.5 rounded-full bg-slate-800 mb-2 mx-auto" />
-        <button
-          onClick={() => navigate('/responder/login')}
-          className="inline-flex items-center gap-1.5 py-1.5 px-3 text-slate-500 hover:text-slate-300 text-xs font-bold transition"
-        >
-          <span>Authorized Responder Access →</span>
-          <ArrowRight className="w-3 h-3" />
-        </button>
+      {/* ======================================================== */}
+      {/* 1. ZERO-INPUT SOS BUTTON WITH 2-SECOND EXPANDING RING   */}
+      {/* ======================================================== */}
+      <div className="flex flex-col items-center justify-center my-auto py-2">
+        <div className="relative flex items-center justify-center">
+          
+          {/* Pulsing Backlight */}
+          <div className="absolute -inset-4 rounded-full bg-red-600/30 blur-2xl animate-pulse pointer-events-none" />
+
+          {/* SVG Progress Ring */}
+          <svg className="w-56 h-56 transform -rotate-90 pointer-events-none absolute">
+            <circle
+              cx="112"
+              cy="112"
+              r="102"
+              stroke="#1e293b"
+              strokeWidth="6"
+              fill="transparent"
+            />
+            {isHolding && (
+              <circle
+                cx="112"
+                cy="112"
+                r="102"
+                stroke="#f59e0b"
+                strokeWidth="8"
+                fill="transparent"
+                strokeDasharray={2 * Math.PI * 102}
+                strokeDashoffset={2 * Math.PI * 102 * (1 - holdProgress / 100)}
+                strokeLinecap="round"
+                className="transition-all duration-75"
+              />
+            )}
+          </svg>
+
+          {/* Main Panic Button */}
+          <button
+            onClick={() => handleQuickSos('FLOOD_TRAPPED')}
+            onMouseDown={startHold}
+            onMouseUp={cancelHold}
+            onMouseLeave={cancelHold}
+            onTouchStart={startHold}
+            onTouchEnd={cancelHold}
+            disabled={isSubmitting}
+            className="w-48 h-48 rounded-full bg-gradient-to-tr from-red-700 via-red-600 to-amber-500 text-white flex flex-col items-center justify-center shadow-2xl shadow-red-950/90 active:scale-95 transition-transform duration-100 border-4 border-red-400/60 relative z-10 group"
+          >
+            <AlertOctagon className="w-14 h-14 animate-bounce mb-1" />
+            <span className="text-xl font-black tracking-tight leading-none">
+              I NEED HELP
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-200 mt-1">
+              {isHolding ? `HOLDING... ${Math.round(holdProgress)}%` : 'TAP OR HOLD 2S'}
+            </span>
+          </button>
+        </div>
+
+        <p className="text-[10px] text-slate-500 text-center mt-3 font-mono">
+          ✓ Real GPS Encrypted • ✓ Relayed over LoRa Mesh • ✓ Zero Login
+        </p>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 2. NOISY VOICE MODE / SCENARIO TILES                     */}
+      {/* ======================================================== */}
+      <div className="space-y-3">
+        
+        {/* Voice SOS Bar */}
+        <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={toggleVoiceSos}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition flex-1 mr-2 ${
+                isListeningVoice
+                  ? 'bg-red-600 text-white animate-pulse'
+                  : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+              }`}
+            >
+              {isListeningVoice ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4 text-slate-400" />}
+              <span>{isListeningVoice ? 'Listening in storm... Tap when done' : '🎙️ Voice SOS in any language'}</span>
+            </button>
+          </div>
+
+          {/* Noisy Voice Fallback Selector */}
+          <div className="space-y-1">
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+              1-TAP NOISY VOICE FALLBACK:
+            </span>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => handleQuickSos('FLOOD_TRAPPED', 'Trapped by Deep Floodwater')}
+                className="py-1.5 px-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-[10px] font-bold text-center"
+              >
+                🌊 WATER
+              </button>
+              <button
+                onClick={() => handleQuickSos('STRUCTURAL_COLLAPSE', 'Trapped Under Collapse Debris')}
+                className="py-1.5 px-2 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 text-[10px] font-bold text-center"
+              >
+                🧱 RESCUE
+              </button>
+              <button
+                onClick={() => handleQuickSos('MEDICAL_CRITICAL', 'Medical Trauma & Bleeding')}
+                className="py-1.5 px-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 text-[10px] font-bold text-center"
+              >
+                🩺 MEDICAL
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Helper Links */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => navigate('/safe')}
+            className="py-2.5 px-3 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 text-xs font-bold hover:bg-slate-800 flex items-center justify-center gap-1.5 transition"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Mark Myself Safe</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/community')}
+            className="py-2.5 px-3 rounded-xl bg-slate-900 border border-slate-800 text-purple-300 text-xs font-bold hover:bg-slate-800 flex items-center justify-center gap-1.5 transition"
+          >
+            <HeartHandshake className="w-4 h-4" />
+            <span>Report Hazard</span>
+          </button>
+        </div>
+
       </div>
 
     </div>

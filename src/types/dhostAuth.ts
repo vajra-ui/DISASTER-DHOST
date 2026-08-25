@@ -31,12 +31,25 @@ export type IncidentType =
   | 'COMMUNITY_REPORT' 
   | 'SAFE_CHECKIN';
 
+export type LocationConfidence = 'HIGH' | 'MEDIUM' | 'APPROXIMATE';
+
 export interface LocationData {
   lat: number;
   lng: number;
   address: string;
   landmark: string;
   accuracyMeters: number;
+  confidence?: LocationConfidence;
+  lastKnownTimestamp?: number;
+}
+
+export interface HopPathDetail {
+  nodeId: string;
+  nodeName: string;
+  role: 'VICTIM_ORIGIN' | 'RELAY' | 'RESCUE_VEHICLE' | 'COMMAND_HQ';
+  protocol: 'BLUETOOTH' | 'WIFI_DIRECT' | 'LORA_MESH' | 'SAT_GATEWAY';
+  timestamp: number;
+  latencyMs: number;
 }
 
 export interface EmergencyPacketLog {
@@ -63,16 +76,34 @@ export interface EmergencyPacket {
   relayStatus: 'DIRECT' | 'MESH_RELAYED' | 'STORE_AND_FORWARD';
   hopCount: number;
   dhostPath: string[];
+  hopPathDetails?: HopPathDetail[];
   status: IncidentStatus;
   assignedTeamId?: string;
   assignedTeamName?: string;
   isCommunityReport?: boolean;
+  isSurvivalMode?: boolean;
+  isLastGaspLocation?: boolean;
+  photoClue?: string;
+  packetHash?: string;
   voluntaryContact?: {
     name?: string;
     phone?: string;
     medicalNotes?: string;
   };
   logs: EmergencyPacketLog[];
+}
+
+export interface IncidentCluster {
+  clusterId: string;
+  clusterName: string;
+  centerLat: number;
+  centerLng: number;
+  radiusMeters: number;
+  totalIncidents: number;
+  totalPeople: number;
+  consolidatedPriority: IncidentPriority;
+  incidentIds: string[];
+  landmark: string;
 }
 
 export interface ResponderUser {
@@ -98,18 +129,4 @@ export interface TrustedSessionState {
   deviceFingerprint: string;
   authenticatedAt: number;
   expiresAt: number;
-  isOfflineTrusted: boolean;
-}
-
-export interface MeshNode {
-  id: string;
-  name: string;
-  type: 'BASE_STATION' | 'MOBILE_RELAY' | 'DRONE_NODE' | 'RESCUE_VEHICLE' | 'COMMUNITY_BEACON';
-  lat: number;
-  lng: number;
-  status: 'ACTIVE' | 'RELAYING' | 'OFFLINE';
-  battery: number;
-  activeHops: number;
-  queuedPacketsCount: number;
-  signalDbm: number;
 }

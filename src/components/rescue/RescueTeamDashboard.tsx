@@ -12,10 +12,15 @@ import {
   Send,
   MessageSquare,
   Sparkles,
-  Check
+  Check,
+  Compass,
+  AlertOctagon,
+  LifeBuoy
 } from 'lucide-react';
 import { useDhostAuth } from '../../store/DhostAuthContext';
 import { IncidentStatus } from '../../types/dhostAuth';
+import { EmergencyPacketCard } from '../common/EmergencyPacketCard';
+import { DhostPathVisualizer } from '../common/DhostPathVisualizer';
 
 export const RescueTeamDashboard: React.FC = () => {
   const { 
@@ -27,7 +32,9 @@ export const RescueTeamDashboard: React.FC = () => {
   } = useDhostAuth();
 
   const [fieldNote, setFieldNote] = useState('');
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ALL'>('ACTIVE');
+  const [activeTab, setActiveTab] = useState<'DISPATCH' | 'ROUTE' | 'PACKET' | 'PATH'>('DISPATCH');
+  const [selectedRoute, setSelectedRoute] = useState<'SAFE' | 'FLOOD' | 'BLOCKED'>('SAFE');
+  const [rescuerStatus, setRescuerStatus] = useState<'SAFE' | 'BACKUP' | 'CRISIS'>('SAFE');
 
   // Filter incidents assigned to this rescue team or in pending queue
   const assignedIncidents = incidents.filter(
@@ -43,44 +50,104 @@ export const RescueTeamDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-slate-950 text-slate-100 p-4 max-w-lg mx-auto space-y-4 animate-in fade-in">
+    <div className="min-h-[calc(100vh-56px)] bg-slate-950 text-slate-100 p-4 max-w-lg mx-auto space-y-4 animate-in fade-in select-none">
       
-      {/* Team Header & Status */}
-      <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-between shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
-            <Shield className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-xs font-bold text-white">{currentUser?.responderId || 'RSC-1042'}</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 text-[10px] font-bold">RESCUE ALPHA</span>
+      {/* 1. TEAM HEADER & RESCUER SAFETY STATUS */}
+      <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 space-y-3 shadow-xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+              <Shield className="w-6 h-6" />
             </div>
-            <p className="text-xs text-slate-400">{currentUser?.name || 'Sgt. Ananya Sen'}</p>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-xs font-bold text-white">{currentUser?.responderId || 'RSC-1042'}</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 text-[10px] font-bold">RESCUE ALPHA</span>
+              </div>
+              <p className="text-xs text-slate-400">{currentUser?.name || 'Sgt. Ananya Sen'}</p>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>DISPATCH ACTIVE</span>
+            </span>
+            <p className="text-[10px] text-slate-400">{networkMode !== 'ONLINE' ? 'OFFLINE TRUSTED' : 'ONLINE'}</p>
           </div>
         </div>
 
-        <div className="text-right">
-          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>DISPATCH ACTIVE</span>
-          </span>
-          <p className="text-[10px] text-slate-400">{networkMode !== 'ONLINE' ? 'OFFLINE TRUSTED' : 'ONLINE'}</p>
+        {/* Rescuer Safety Status Bar */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+          <span className="text-[10px] text-slate-400 font-bold uppercase">TEAM SAFETY:</span>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setRescuerStatus('SAFE')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                rescuerStatus === 'SAFE' ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              🟢 SAFE
+            </button>
+            <button
+              onClick={() => setRescuerStatus('BACKUP')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                rescuerStatus === 'BACKUP' ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              🟠 NEED BACKUP
+            </button>
+            <button
+              onClick={() => setRescuerStatus('CRISIS')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                rescuerStatus === 'CRISIS' ? 'bg-red-500 text-white font-black animate-pulse' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              🔴 MAYDAY
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Focus: Active Primary Dispatch */}
-      {activeIncident ? (
-        <div className="p-5 rounded-3xl bg-slate-900 border border-blue-500/40 shadow-2xl space-y-4">
+      {/* Tabs */}
+      <div className="grid grid-cols-4 gap-1.5 p-1 rounded-2xl bg-slate-900 border border-slate-800 text-[10px] font-bold">
+        <button
+          onClick={() => setActiveTab('DISPATCH')}
+          className={`py-1.5 rounded-xl transition ${activeTab === 'DISPATCH' ? 'bg-blue-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+        >
+          🚨 Target
+        </button>
+        <button
+          onClick={() => setActiveTab('ROUTE')}
+          className={`py-1.5 rounded-xl transition ${activeTab === 'ROUTE' ? 'bg-blue-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+        >
+          🚦 Route AI
+        </button>
+        <button
+          onClick={() => setActiveTab('PACKET')}
+          className={`py-1.5 rounded-xl transition ${activeTab === 'PACKET' ? 'bg-blue-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+        >
+          📜 Packet
+        </button>
+        <button
+          onClick={() => setActiveTab('PATH')}
+          className={`py-1.5 rounded-xl transition ${activeTab === 'PATH' ? 'bg-blue-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+        >
+          📡 Hops
+        </button>
+      </div>
+
+      {/* TAB 1: ACTIVE PRIMARY DISPATCH */}
+      {activeTab === 'DISPATCH' && activeIncident && (
+        <div className="p-5 rounded-3xl bg-slate-900 border border-blue-500/40 shadow-2xl space-y-4 animate-in fade-in">
           
-          {/* Dispatch Header */}
           <div className="flex items-start justify-between">
             <div>
               <span className="text-[10px] font-black uppercase text-blue-400 tracking-wider">PRIMARY TARGET DISPATCH</span>
               <div className="flex items-center gap-2 mt-0.5">
                 <h2 className="text-lg font-black text-white">{activeIncident.incidentCategoryLabel}</h2>
                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
-                  activeIncident.priority === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-amber-500/20 text-amber-400'
+                  activeIncident.priority === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse' : 'bg-amber-500/20 text-amber-400'
                 }`}>
                   {activeIncident.priority}
                 </span>
@@ -90,17 +157,15 @@ export const RescueTeamDashboard: React.FC = () => {
             <button
               onClick={() => openPacketInspector(activeIncident)}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 transition"
-              title="Inspect DHOST Packet"
             >
               <FileText className="w-3.5 h-3.5" />
               <span className="text-[10px] font-mono">{activeIncident.incidentId}</span>
             </button>
           </div>
 
-          {/* AI Auto-Translated Distress Message */}
           <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">Distress Transmission ({activeIncident.originalLanguage}):</span>
+              <span className="text-slate-400">Distress Payload:</span>
               <span className="text-blue-400 font-bold flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
                 Auto-Translated
@@ -111,12 +176,12 @@ export const RescueTeamDashboard: React.FC = () => {
             </p>
           </div>
 
-          {/* Target Location & Tactical Telemetry */}
+          {/* Location & Fusion */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase">GPS Landmark</span>
               <p className="font-bold text-slate-200">{activeIncident.location?.address || 'Disaster Area'}</p>
-              <span className="text-[10px] text-blue-400 font-mono">±{activeIncident.location?.accuracyMeters || 5}m Accuracy</span>
+              <span className="text-[10px] text-emerald-400 font-mono">🟢 ±{activeIncident.location?.accuracyMeters || 12}m (HIGH)</span>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
@@ -126,7 +191,7 @@ export const RescueTeamDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Dispatch Step Progression Buttons */}
+          {/* Progression Actions */}
           <div className="space-y-2 pt-1">
             <span className="text-[11px] font-bold text-slate-400">Response Progression:</span>
             
@@ -139,14 +204,14 @@ export const RescueTeamDashboard: React.FC = () => {
                     : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                1. Acknowledge
+                1. Accept
               </button>
 
               <button
                 onClick={() => handleStatusChange('EN_ROUTE')}
                 className={`py-2.5 px-2 rounded-xl text-[11px] font-black border transition ${
                   activeIncident.status === 'EN_ROUTE'
-                    ? 'bg-amber-600 border-amber-500 text-white shadow-lg'
+                    ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg'
                     : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                 }`}
               >
@@ -165,91 +230,104 @@ export const RescueTeamDashboard: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                onClick={() => handleStatusChange('RESCUED')}
-                className={`py-3 px-3 rounded-2xl text-xs font-black border flex items-center justify-center gap-1.5 transition ${
-                  activeIncident.status === 'RESCUED'
-                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg'
-                    : 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-700'
-                }`}
-              >
-                <Check className="w-4 h-4" />
-                <span>4. Victims Rescued</span>
-              </button>
-
-              <button
-                onClick={() => handleStatusChange('COMPLETED')}
-                className={`py-3 px-3 rounded-2xl text-xs font-black border flex items-center justify-center gap-1.5 transition ${
-                  activeIncident.status === 'COMPLETED'
-                    ? 'bg-slate-700 border-slate-600 text-white'
-                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>5. Mission Complete</span>
-              </button>
-            </div>
+            <button
+              onClick={() => handleStatusChange('RESCUED')}
+              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-xl flex items-center justify-center gap-2 mt-2 transition"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>4. MARK RESCUE COMPLETE / VICTIM EVACUATED</span>
+            </button>
           </div>
 
-          {/* Add Field Note */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-slate-400">Append Tactical Field Note:</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={fieldNote}
-                onChange={e => setFieldNote(e.target.value)}
-                placeholder="e.g., Inflatable boat deployed, 4 individuals safe"
-                className="flex-1 py-2 px-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
-              />
-              <button
-                onClick={() => {
-                  if (fieldNote.trim()) {
-                    updateIncidentStatus(activeIncident.incidentId, activeIncident.status, fieldNote);
-                    setFieldNote('');
-                  }
-                }}
-                className="py-2 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Log</span>
-              </button>
-            </div>
-          </div>
-
-        </div>
-      ) : (
-        <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-2">
-          <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-          <h3 className="text-base font-bold text-white">All Assigned Missions Completed</h3>
-          <p className="text-xs text-slate-400">Stand by for new mesh beacon dispatches from Command Center.</p>
         </div>
       )}
 
-      {/* Secondary Incidents in Queue */}
-      <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 space-y-3">
-        <span className="text-xs font-bold text-slate-300">All Nearby Unassigned Incidents:</span>
-        <div className="space-y-2">
-          {incidents.slice(0, 3).map(inc => (
-            <div
-              key={inc.incidentId}
-              onClick={() => openPacketInspector(inc)}
-              className="p-3 rounded-2xl bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-2 cursor-pointer transition"
+      {/* TAB 2: RESCUE ROUTE SAFETY INTELLIGENCE */}
+      {activeTab === 'ROUTE' && (
+        <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 space-y-3 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-white flex items-center gap-1.5">
+              <Compass className="w-4 h-4 text-emerald-400" />
+              <span>Rescue Route Safety Intelligence</span>
+            </span>
+            <span className="text-[10px] font-mono text-emerald-400 font-bold">GIS TERRAIN SCAN</span>
+          </div>
+
+          <div className="space-y-2.5">
+            
+            {/* Route 1: Safe Route */}
+            <div 
+              onClick={() => setSelectedRoute('SAFE')}
+              className={`p-3.5 rounded-2xl border cursor-pointer transition space-y-1.5 ${
+                selectedRoute === 'SAFE' ? 'bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20' : 'bg-slate-950 border-slate-800'
+              }`}
             >
-              <div>
-                <p className="text-xs font-bold text-white">{inc.incidentCategoryLabel} ({inc.peopleCount} People)</p>
-                <p className="text-[10px] text-slate-400">{inc.location.address} • {inc.priority}</p>
+              <div className="flex items-center justify-between">
+                <span className="font-black text-xs text-emerald-400">🟢 SAFE ROUTE (RECOMMENDED)</span>
+                <span className="text-xs font-mono font-bold text-white">4.8 km • 12 min</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-1 rounded bg-slate-800 text-slate-300">
-                {inc.incidentId}
-              </span>
+              <p className="text-[11px] text-slate-300">
+                Via Fairlands High Ground Boulevard. Zero flood inundation, cleared power lines.
+              </p>
             </div>
-          ))}
+
+            {/* Route 2: Flood-Exposed */}
+            <div 
+              onClick={() => setSelectedRoute('FLOOD')}
+              className={`p-3.5 rounded-2xl border cursor-pointer transition space-y-1.5 ${
+                selectedRoute === 'FLOOD' ? 'bg-amber-950/40 border-amber-500 ring-2 ring-amber-500/20' : 'bg-slate-950 border-slate-800'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-black text-xs text-amber-400">🟠 FLOOD-EXPOSED ROUTE</span>
+                <span className="text-xs font-mono font-bold text-white">3.1 km • 8 min</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                Via Lakeview Causeway. Waterlogged ~2.5 ft. Requires inflatable boat or high-clearance truck.
+              </p>
+            </div>
+
+            {/* Route 3: Blocked */}
+            <div 
+              className="p-3.5 rounded-2xl bg-slate-950 border border-red-500/30 opacity-70 space-y-1.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-black text-xs text-red-400">🔴 BLOCKED / IMPASSABLE</span>
+                <span className="text-xs font-mono font-bold text-slate-500">2.2 km • CLOSED</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Downed 11kV electrical wire and bridge structural debris.
+              </p>
+            </div>
+
+          </div>
+
+          <a
+            href={`https://maps.google.com/?q=${activeIncident?.location?.lat},${activeIncident?.location?.lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition mt-2"
+          >
+            <Navigation className="w-4 h-4" />
+            <span>Launch Google Maps GPS Turn-by-Turn</span>
+          </a>
         </div>
-      </div>
+      )}
+
+      {/* TAB 3: PACKET INTEL */}
+      {activeTab === 'PACKET' && activeIncident && (
+        <div className="animate-in fade-in">
+          <EmergencyPacketCard packet={activeIncident} />
+        </div>
+      )}
+
+      {/* TAB 4: HOPS */}
+      {activeTab === 'PATH' && activeIncident && (
+        <div className="animate-in fade-in">
+          <DhostPathVisualizer packet={activeIncident} />
+        </div>
+      )}
 
     </div>
   );
 };
-

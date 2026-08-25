@@ -1,4 +1,4 @@
-import { EmergencyPacket, IncidentPriority, UserRole } from '../types/dhostAuth';
+import { EmergencyPacket, IncidentPriority, UserRole, IncidentCluster, LocationConfidence } from '../types/dhostAuth';
 
 export interface AiTriageAnalysis {
   urgencyScore: number; // 0 - 100
@@ -75,33 +75,33 @@ class AiTriageService {
     const hazards: string[] = [];
 
     // Water level heuristics
-    if (text.includes('chest') || text.includes('neck') || text.includes('roof') || text.includes('surging') || text.includes('flood')) {
+    if (text.includes('chest') || text.includes('neck') || text.includes('roof') || text.includes('surging') || text.includes('flood') || text.includes('water')) {
       score += 25;
-      hazards.push('Rapid Inundation / Submersion');
+      hazards.push('Rapid Inundation / Water Surging Above Safe Levels');
     }
 
     // Collapse / Debris heuristics
     if (type === 'STRUCTURAL_COLLAPSE' || text.includes('trapped') || text.includes('debris') || text.includes('wall collapse')) {
       score += 25;
-      hazards.push('Physical Structural Entrapment');
+      hazards.push('Physical Structural Entrapment under Debris');
     }
 
     // Medical Trauma
     if (type === 'MEDICAL_CRITICAL' || text.includes('bleeding') || text.includes('heart') || text.includes('unconscious') || text.includes('infant') || text.includes('child')) {
       score += 20;
-      hazards.push('Critical Medical Trauma');
+      hazards.push('Critical Medical Trauma / Vulnerable Population (Infant/Elderly)');
     }
 
     // People count multiplier
     if (packet.peopleCount >= 4) {
       score += 15;
-      hazards.push(`High Density Casualty (${packet.peopleCount} individuals)`);
+      hazards.push(`High Density Group Casualty (${packet.peopleCount} individuals trapped)`);
     }
 
     // Battery depletion penalty
     if (packet.batteryLevel <= 20) {
       score += 10;
-      hazards.push('Critical Device Power Depletion (<20%)');
+      hazards.push(`Critical Device Power Depletion (${packet.batteryLevel}% remaining)`);
     }
 
     score = Math.min(100, Math.max(15, score));
@@ -119,10 +119,10 @@ class AiTriageService {
 
     if (text.includes('roof') || text.includes('isolated') || text.includes('winch')) {
       recTeam = DEPLOYED_RESCUE_TEAMS[3]; // Helo
-      reasoning = 'AI recommends Air-Lift Helo (AIR-01) for isolated rooftop winch rescue.';
+      reasoning = 'AI recommends Air-Lift Helo (AIR-01) for isolated rooftop winch extraction.';
     } else if (type === 'FLOOD_TRAPPED' || text.includes('water') || text.includes('boat')) {
       recTeam = DEPLOYED_RESCUE_TEAMS[1]; // Boat unit
-      reasoning = 'AI recommends Boat Unit (RSC-1088) with motorized rafts for flood extraction.';
+      reasoning = 'AI recommends Boat Unit (RSC-1088) with motorized rafts for deep water extraction.';
     } else if (type === 'MEDICAL_CRITICAL' || text.includes('doctor') || text.includes('oxygen') || text.includes('injury')) {
       recTeam = DEPLOYED_RESCUE_TEAMS[2]; // Medical
       reasoning = 'AI recommends Medical Rapid Triage (MED-204) for on-site medical stabilization.';
@@ -146,7 +146,6 @@ class AiTriageService {
    */
   public sortIncidentsByUrgency(incidents: EmergencyPacket[]): EmergencyPacket[] {
     return [...incidents].sort((a, b) => {
-      // Prioritize unresolved
       const aResolved = a.status === 'RESOLVED' || a.status === 'RESCUED';
       const bResolved = b.status === 'RESOLVED' || b.status === 'RESCUED';
       if (aResolved && !bResolved) return 1;
@@ -156,6 +155,66 @@ class AiTriageService {
       const bScore = this.analyzeIncident(b).urgencyScore;
       return bScore - aScore;
     });
+  }
+
+  /**
+   * Duplicate Incident Spatial Clustering
+   * Groups nearby reports within radius (e.g. 250m) into single actionable clusters
+   */
+  public clusterIncidents(incidents: EmergencyPacket[], radiusMeters: number = 250): IncidentCluster[] {
+    const clusters: IncidentCluster[] = [];
+    const visited = new Set<string>();
+
+    // Haversine distance in meters
+    const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371e3; // metres
+      const φ1 = (lat1 * Math.PI) / 180;
+      const φ2 = (lat2 * Math.PI) / 180;
+      const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+      const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return R * c;
+    };
+
+    incidents.forEach((inc, index) => {
+      if (visited.has(inc.incidentId) || inc.status === 'RESOLVED') return;
+
+      const clusterGroup: EmergencyPacket[] = [inc];
+      visited.add(inc.incidentId);
+
+      incidents.forEach((other) => {
+        if (inc.incidentId !== other.incidentId && !visited.has(other.incidentId) && other.status !== 'RESOLVED') {
+          const dist = getDistanceMeters(inc.location.lat, inc.location.lng, other.location.lat, other.location.lng);
+          if (dist <= radiusMeters) {
+            clusterGroup.push(other);
+            visited.add(other.incidentId);
+          }
+        }
+      });
+
+      const totalPeople = clusterGroup.reduce((sum, item) => sum + item.peopleCount, 0);
+      const hasCritical = clusterGroup.some(item => item.priority === 'CRITICAL');
+
+      clusters.push({
+        clusterId: `CLUST-${(index + 1).toString().padStart(2, '0')}`,
+        clusterName: `${inc.incidentCategoryLabel} Cluster (${inc.location.landmark || 'Fairlands Sector'})`,
+        centerLat: inc.location.lat,
+        centerLng: inc.location.lng,
+        radiusMeters,
+        totalIncidents: clusterGroup.length,
+        totalPeople,
+        consolidatedPriority: hasCritical || totalPeople >= 6 ? 'CRITICAL' : 'HIGH',
+        incidentIds: clusterGroup.map(i => i.incidentId),
+        landmark: inc.location.landmark || inc.location.address || 'Disaster Sector'
+      });
+    });
+
+    return clusters;
   }
 }
 
