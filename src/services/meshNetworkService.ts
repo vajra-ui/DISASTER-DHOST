@@ -83,6 +83,20 @@ class MeshNetworkService {
     return [...this.nodes];
   }
 
+  public getAllNodes(): MeshNode[] {
+    return this.getNodes();
+  }
+
+  public simulateFailover(): void {
+    const drone = this.nodes.find(n => n.type === 'DRONE_NODE');
+    if (drone) {
+      drone.status = 'RELAYING';
+      drone.activeHops += 1;
+      drone.queuedPacketsCount += 12;
+      this.notify();
+    }
+  }
+
   public simulateNodeFailure(nodeId: string): void {
     const node = this.nodes.find(n => n.id === nodeId);
     if (node) {

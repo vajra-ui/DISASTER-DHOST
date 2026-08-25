@@ -194,16 +194,24 @@ class IncidentService {
     try {
       const raw = localStorage.getItem(INCIDENTS_STORAGE_KEY);
       if (raw) {
-        this.incidents = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed[0])) {
+            this.incidents = parsed[0];
+          } else {
+            this.incidents = parsed;
+          }
+        } else {
+          this.incidents = [...SEED_INCIDENTS];
+        }
       } else {
-        this.incidents = [SEED_INCIDENTS];
+        this.incidents = [...SEED_INCIDENTS];
         this.persist();
       }
     } catch {
-      this.incidents = [SEED_INCIDENTS];
+      this.incidents = [...SEED_INCIDENTS];
     }
   }
-
 
   private persist(): void {
     try {
@@ -395,7 +403,7 @@ class IncidentService {
   }
 
 
-  public assignTeam(incidentId: string, teamId: string, teamName: string, actor: string): EmergencyPacket | null {
+  public assignTeam(incidentId: string, teamId: string, teamName: string, actor: string = 'Incident Commander'): EmergencyPacket | null {
     const inc = this.incidents.find(i => i.incidentId === incidentId);
     if (!inc) return null;
 
@@ -412,6 +420,26 @@ class IncidentService {
 
     this.persist();
     return inc;
+  }
+
+  public createVictimSos(params: {
+    incidentType: IncidentType;
+    requestText: string;
+    originalLanguage?: string;
+    peopleCount: number;
+    location: LocationData;
+    batteryLevel?: number;
+    voluntaryContact?: {
+      name?: string;
+      phone?: string;
+      medicalNotes?: string;
+    };
+  }): EmergencyPacket {
+    return this.createVictimEmergency(params);
+  }
+
+  public resetToDefaults(): void {
+    this.resetToSeed();
   }
 
 

@@ -27,8 +27,9 @@ export class ErrorBoundary extends Component<Props, State> {
   private handleReload = () => {
     try {
       localStorage.clear();
+      sessionStorage.clear();
     } catch {}
-    window.location.reload();
+    window.location.href = '/';
   };
 
   public render() {
