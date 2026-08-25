@@ -19,17 +19,17 @@ import {
   Activity, 
   Users, 
   Clock, 
-  CheckCircle2,
-  X,
-  Plus,
-  LifeBuoy,
-  Heart,
-  ChevronRight,
-  ShieldCheck,
-  Brain,
-  Sliders,
-  Plane,
-  AlertTriangle
+  CheckCircle2, 
+  X, 
+  Plus, 
+  LifeBuoy, 
+  Heart, 
+  ChevronRight, 
+  ShieldCheck, 
+  Brain, 
+  Sliders, 
+  Plane, 
+  AlertTriangle 
 } from 'lucide-react';
 import { EmergencyPacket, IncidentPriority } from '../../types/dhostAuth';
 import { DEPLOYED_RESCUE_TEAMS } from '../../services/aiTriageService';
@@ -51,6 +51,120 @@ export interface RescuePossibility {
   routeDescription: string;
   pros: string[];
   cons: string[];
+}
+
+/**
+ * Procedural 3D Human Figure Generator
+ * Creates articulated human figures (Head, Helmet/Cap, Torso, Reflective Vest, Arms, Legs)
+ */
+function createHumanFigure({
+  isRescuer = false,
+  isInjured = false,
+  isWaving = true,
+  shirtColor = 0xf59e0b,
+  scale = 1.0
+}: {
+  isRescuer?: boolean;
+  isInjured?: boolean;
+  isWaving?: boolean;
+  shirtColor?: number;
+  scale?: number;
+}): THREE.Group {
+  const group = new THREE.Group();
+
+  // 1. Head
+  const headGeo = new THREE.SphereGeometry(0.32 * scale, 12, 12);
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xe0ac69, roughness: 0.6 });
+  const head = new THREE.Mesh(headGeo, skinMat);
+  head.position.y = 1.65 * scale;
+  head.castShadow = true;
+  group.add(head);
+
+  // 2. Helmet / Headgear
+  if (isRescuer) {
+    const helmetGeo = new THREE.SphereGeometry(0.36 * scale, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.65);
+    const helmetMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.3 }); // White NDRF Rescue Helmet
+    const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+    helmet.position.y = 1.72 * scale;
+    group.add(helmet);
+  } else {
+    // Hair
+    const hairGeo = new THREE.SphereGeometry(0.34 * scale, 10, 10, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
+    const hair = new THREE.Mesh(hairGeo, hairMat);
+    hair.position.y = 1.7 * scale;
+    group.add(hair);
+  }
+
+  // 3. Torso / Tactical Safety Jacket
+  const torsoGeo = new THREE.BoxGeometry(0.65 * scale, 0.8 * scale, 0.38 * scale);
+  const torsoMat = new THREE.MeshStandardMaterial({ 
+    color: isRescuer ? 0xf97316 : isInjured ? 0xef4444 : shirtColor, // High-vis orange for rescuer
+    roughness: 0.7 
+  });
+  const torso = new THREE.Mesh(torsoGeo, torsoMat);
+  torso.position.y = 1.08 * scale;
+  torso.castShadow = true;
+  group.add(torso);
+
+  // Reflective Silver Strips on Rescuer Vest
+  if (isRescuer) {
+    const stripGeo = new THREE.BoxGeometry(0.68 * scale, 0.14 * scale, 0.4 * scale);
+    const stripMat = new THREE.MeshBasicMaterial({ color: 0xf1f5f9 });
+    const strip = new THREE.Mesh(stripGeo, stripMat);
+    strip.position.y = 1.08 * scale;
+    group.add(strip);
+  }
+
+  // 4. Arms
+  const armGeo = new THREE.CylinderGeometry(0.1 * scale, 0.1 * scale, 0.7 * scale, 8);
+  const armMat = new THREE.MeshStandardMaterial({ 
+    color: isRescuer ? 0xf97316 : isInjured ? 0xef4444 : shirtColor, 
+    roughness: 0.7 
+  });
+
+  // Left Arm
+  const leftArm = new THREE.Mesh(armGeo, armMat);
+  if (isWaving && !isInjured) {
+    leftArm.position.set(-0.42 * scale, 1.45 * scale, 0);
+    leftArm.rotation.z = Math.PI * 0.75; // Raised waving arm
+  } else {
+    leftArm.position.set(-0.42 * scale, 0.95 * scale, 0.05 * scale);
+    leftArm.rotation.x = Math.PI * 0.15;
+  }
+  leftArm.castShadow = true;
+  group.add(leftArm);
+
+  // Right Arm
+  const rightArm = new THREE.Mesh(armGeo, armMat);
+  if (isWaving && !isInjured) {
+    rightArm.position.set(0.42 * scale, 1.45 * scale, 0);
+    rightArm.rotation.z = -Math.PI * 0.75; // Raised waving arm
+  } else {
+    rightArm.position.set(0.42 * scale, 0.95 * scale, 0.05 * scale);
+    rightArm.rotation.x = Math.PI * 0.15;
+  }
+  rightArm.castShadow = true;
+  group.add(rightArm);
+
+  // 5. Legs
+  const legGeo = new THREE.CylinderGeometry(0.12 * scale, 0.12 * scale, 0.75 * scale, 8);
+  const pantsMat = new THREE.MeshStandardMaterial({ 
+    color: isRescuer ? 0x0f172a : 0x1e293b, // Navy tactical trousers
+    roughness: 0.8 
+  });
+
+  const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+  leftLeg.position.set(-0.18 * scale, 0.38 * scale, 0);
+  leftLeg.castShadow = true;
+  group.add(leftLeg);
+
+  const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+  rightLeg.position.set(0.18 * scale, 0.38 * scale, 0);
+  rightLeg.castShadow = true;
+  group.add(rightLeg);
+
+  return group;
 }
 
 export const Dhost3DDigitalTwin: React.FC<Props> = ({
@@ -335,45 +449,45 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     riskVolumeMeshRef.current = riskVolume;
 
     // -------------------------------------------------------------
-    // 10. 3D STRANDED PEOPLE CLUSTERS ON ROOFTOP & BRIDGE
+    // 10. 3D VISIBLE HUMAN STRANDED PEOPLE CLUSTERS ON ROOFTOP
     // -------------------------------------------------------------
     const peopleStuckGroup = new THREE.Group();
     peopleStuckGroupRef.current = peopleStuckGroup;
     scene.add(peopleStuckGroup);
 
-    // Rooftop 1: 14 Stranded People at (-18, 12, 12)
-    const personGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.4, 8);
-    const personHeadGeo = new THREE.SphereGeometry(0.35, 8, 8);
-    const personMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
-    const injuredMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+    // 14 Full 3D Human Figures (Head, Torso, Arms Waving, Legs)
+    const shirtColors = [0xf59e0b, 0x38bdf8, 0xef4444, 0x10b981, 0xa855f7, 0xf97316, 0xec4899];
 
     for (let p = 0; p < 14; p++) {
-      const px = -18 + (p % 4) * 1.8 - 2.7;
-      const pz = 12 + Math.floor(p / 4) * 1.8 - 2.7;
+      const px = -18 + (p % 4) * 2.2 - 3.3;
+      const pz = 12 + Math.floor(p / 4) * 2.2 - 3.3;
       const isInjured = p === 0 || p === 1;
 
-      const body = new THREE.Mesh(personGeo, isInjured ? injuredMat : personMat);
-      body.position.set(px, 12.7, pz);
-      const head = new THREE.Mesh(personHeadGeo, isInjured ? injuredMat : personMat);
-      head.position.set(px, 13.7, pz);
-      
-      peopleStuckGroup.add(body);
-      peopleStuckGroup.add(head);
+      const humanFigure = createHumanFigure({
+        isRescuer: false,
+        isInjured,
+        isWaving: true,
+        shirtColor: shirtColors[p % shirtColors.length],
+        scale: 1.0
+      });
+
+      humanFigure.position.set(px, 12, pz);
+      peopleStuckGroup.add(humanFigure);
     }
 
     // Floating SOS Beacon Ring Above Trapped Rooftop
-    const sosRingGeo = new THREE.RingGeometry(3.5, 4.2, 32);
-    const sosRingMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+    const sosRingGeo = new THREE.RingGeometry(3.8, 4.6, 32);
+    const sosRingMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
     const sosRing = new THREE.Mesh(sosRingGeo, sosRingMat);
     sosRing.rotation.x = -Math.PI / 2;
-    sosRing.position.set(-18, 14.5, 12);
+    sosRing.position.set(-18, 15.5, 12);
     peopleStuckGroup.add(sosRing);
 
     // Vertical Light Beam from Rooftop
-    const beamGeo = new THREE.CylinderGeometry(0.3, 0.3, 40, 16);
+    const beamGeo = new THREE.CylinderGeometry(0.35, 0.35, 45, 16);
     const beamMat = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.85 });
     const beam = new THREE.Mesh(beamGeo, beamMat);
-    beam.position.set(-18, 32, 12);
+    beam.position.set(-18, 34, 12);
     peopleStuckGroup.add(beam);
 
     // -------------------------------------------------------------
@@ -410,31 +524,73 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     scene.add(winchBeam);
     rescueBeamRef.current = winchBeam;
 
-    // 12. 3D Moving Rescue Vehicles
+    // -------------------------------------------------------------
+    // 12. 3D RESCUE VEHICLES WITH VISIBLE HUMAN RESCUE CREW
+    // -------------------------------------------------------------
     const vehicleGroup = new THREE.Group();
     vehicleGroupRef.current = vehicleGroup;
     scene.add(vehicleGroup);
 
-    // Team Bravo Rescue Boat
-    const boatGeo = new THREE.BoxGeometry(4.5, 2, 8);
-    const boatMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.3 });
-    const boat = new THREE.Mesh(boatGeo, boatMat);
-    boat.position.set(0, 3, -40);
-    vehicleGroup.add(boat);
+    // Team Bravo Rescue Boat with 2 Visible Human Rescuers on Deck!
+    const boatContainer = new THREE.Group();
+    const boatGeo = new THREE.BoxGeometry(4.8, 1.8, 8.5);
+    const boatMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.3 });
+    const boatHull = new THREE.Mesh(boatGeo, boatMat);
+    boatHull.castShadow = true;
+    boatContainer.add(boatHull);
 
-    // Helicopter Helo AIR-01
+    // Human Rescuer 1 (Sgt. Ananya Sen / Squad Captain) standing at the steering helm!
+    const rescuer1 = createHumanFigure({
+      isRescuer: true,
+      isInjured: false,
+      isWaving: false,
+      shirtColor: 0xf97316,
+      scale: 1.1
+    });
+    rescuer1.position.set(0.8, 0.9, 1.5);
+    boatContainer.add(rescuer1);
+
+    // Human Rescuer 2 (Paramedic with High-Vis Jacket) standing at the bow!
+    const rescuer2 = createHumanFigure({
+      isRescuer: true,
+      isInjured: false,
+      isWaving: false,
+      shirtColor: 0xf97316,
+      scale: 1.1
+    });
+    rescuer2.position.set(-0.8, 0.9, -1.8);
+    boatContainer.add(rescuer2);
+
+    boatContainer.position.set(0, 3, -40);
+    vehicleGroup.add(boatContainer);
+
+    // Helicopter Helo AIR-01 with Human Crew
+    const heloContainer = new THREE.Group();
     const heloGeo = new THREE.BoxGeometry(4, 3, 9);
     const heloMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2 });
     const helo = new THREE.Mesh(heloGeo, heloMat);
-    helo.position.set(20, 35, -40);
-    vehicleGroup.add(helo);
+    heloContainer.add(helo);
 
     // Helo Rotor Blade
-    const rotorGeo = new THREE.BoxGeometry(14, 0.2, 1.2);
+    const rotorGeo = new THREE.BoxGeometry(15, 0.2, 1.4);
     const rotorMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const rotor = new THREE.Mesh(rotorGeo, rotorMat);
     rotor.position.set(0, 2, 0);
     helo.add(rotor);
+
+    // Human Pilot visible in Helo
+    const heloPilot = createHumanFigure({
+      isRescuer: true,
+      isInjured: false,
+      isWaving: false,
+      shirtColor: 0xf97316,
+      scale: 0.9
+    });
+    heloPilot.position.set(0, 0.2, 1.8);
+    heloContainer.add(heloPilot);
+
+    heloContainer.position.set(20, 35, -40);
+    vehicleGroup.add(heloContainer);
 
     // 13. 3D LoRa Mesh Network Lines & Data Particles
     const particleGroup = new THREE.Group();
@@ -519,14 +675,14 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       // Animate Helo Rotor Spin
       if (vehicleGroupRef.current && vehicleGroupRef.current.children[1]) {
         const heloMesh = vehicleGroupRef.current.children[1];
-        if (heloMesh.children[0]) {
-          heloMesh.children[0].rotation.y = elapsedTime * 25;
+        if (heloMesh.children[0] && heloMesh.children[0].children[0]) {
+          heloMesh.children[0].children[0].rotation.y = elapsedTime * 28;
         }
       }
 
       // Animate Stranded SOS Halo rotation
-      if (peopleStuckGroupRef.current && peopleStuckGroupRef.current.children[28]) {
-        peopleStuckGroupRef.current.children[28].rotation.z = elapsedTime * 1.5;
+      if (peopleStuckGroupRef.current && peopleStuckGroupRef.current.children[14]) {
+        peopleStuckGroupRef.current.children[14].rotation.z = elapsedTime * 1.5;
       }
 
       // Animate Data Packet Particle Flow
@@ -718,11 +874,11 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
             <h1 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
               <span>DHOST 3D OPERATIONAL TWIN™</span>
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
-                AI RESCUE POSSIBILITIES ENGINE
+                HUMAN PERSONNEL + AI TRAJECTORY
               </span>
             </h1>
             <p className="text-[10px] text-slate-400 font-mono hidden md:block">
-              Old Bridge Pillar Sector • 14 Stranded Victims • Multi-Modal Extraction Trajectory
+              14 Human Stranded Victims • Uniformed Rescuer Squad • Zodiac Raft Approach
             </p>
           </div>
         </div>
@@ -739,7 +895,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
             }`}
           >
             <Brain className="w-3.5 h-3.5" />
-            <span>🧠 AI Rescue Possibilities ({rescueOptions.length})</span>
+            <span>🧠 AI Possibilities ({rescueOptions.length})</span>
           </button>
 
           <button
@@ -751,7 +907,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>👥 Victims (14)</span>
+            <span>👥 14 Human Victims</span>
           </button>
 
           <button
@@ -877,17 +1033,17 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
             <div className="space-y-1">
               {rescueStep === 1 && (
                 <p className="text-white font-bold text-xs">
-                  {selectedPossibility === 'HELO_WINCH' ? '🚁 1. Coast Guard Helo Air-1 flying aerial ingress at altitude 35m (ETA 4 mins)...' : '🚤 1. Team Bravo Zodiac Boat navigating deep waterway channel (avoiding submerged road blocks)...'}
+                  {selectedPossibility === 'HELO_WINCH' ? '🚁 1. Coast Guard Helo Air-1 flying aerial ingress at altitude 35m (ETA 4 mins)...' : '🚤 1. Team Bravo Zodiac Boat with 2 Uniformed Rescuers navigating river channel...'}
                 </p>
               )}
               {rescueStep === 2 && (
                 <p className="text-amber-300 font-bold text-xs">
-                  ⚓ 2. Rescuer locked position at stranded rooftop. Deploying high-line winch lines and inflatable safety rafts...
+                  ⚓ 2. Rescuer crew locked position at stranded rooftop. Deploying high-line winch lines and inflatable safety rafts...
                 </p>
               )}
               {rescueStep === 3 && (
                 <p className="text-blue-300 font-bold text-xs">
-                  🩺 3. 14 Stranded victims extricated into rescue unit. Paramedics stabilizing 2 trauma fracture casualties...
+                  🩺 3. 14 Stranded human victims extricated into rescue unit. Rescuers stabilizing 2 trauma fracture casualties...
                 </p>
               )}
               {rescueStep === 4 && (
@@ -912,7 +1068,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
           <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
             <span className="font-black text-red-400 flex items-center gap-1.5">
               <Users className="w-4 h-4" />
-              <span>14 STRANDED VICTIMS</span>
+              <span>14 HUMAN VICTIMS</span>
             </span>
             <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 text-[10px] font-bold">
               CRITICAL
@@ -930,7 +1086,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
             onClick={handleFocusStrandedPeople}
             className="w-full py-1.5 rounded-xl bg-red-600/30 hover:bg-red-600/40 border border-red-500/50 text-red-200 font-bold text-[10px] transition"
           >
-            Zoom Camera to Rooftop ➔
+            Zoom Camera to Human Victims ➔
           </button>
         </div>
 
@@ -1003,7 +1159,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
                   {selectedIncident.priority}
                 </span>
                 <h3 className="text-sm font-black text-white">
-                  {selectedIncident.incidentCategoryLabel} ({rescueCompleted ? '14 Rescued Safe' : '14 People Trapped on Rooftop'})
+                  {selectedIncident.incidentCategoryLabel} ({rescueCompleted ? '14 Rescued Safe' : '14 Human Victims Trapped on Rooftop'})
                 </h3>
               </div>
               <p className="text-xs text-slate-300 font-medium italic">
@@ -1031,7 +1187,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
                 className="px-4 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-black text-xs flex items-center gap-1.5 transition"
               >
                 <Users className="w-4 h-4" />
-                <span>Focus Victims</span>
+                <span>Focus Human Victims</span>
               </button>
             </div>
 
