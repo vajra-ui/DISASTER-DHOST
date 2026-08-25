@@ -153,7 +153,7 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     incidentLandmark: 'Downtown Central Tower Collapse Void',
     casualtySummary: '9 Trapped in Basement Rubble Void • 3 Severe Trauma',
     hazardDescription: 'Aftershock collapse hazard, gas lines, unstable concrete slabs',
-    screenEffectName: '🏚️ SEISMIC CAMERA TREMOR & GROUND SHAKE',
+    screenEffectName: '🏚️ SEISMIC CAMERA TREMOR (3 SECONDS)',
     skyColor: 0x0f172a,
     fogColor: 0x1c1917,
     options: [
@@ -627,6 +627,10 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   // Mobile Bottom Tab State
   const [mobileBottomTab, setMobileBottomTab] = useState<'STRATEGIES' | 'THREAT_DETAILS'>('STRATEGIES');
 
+  // Earthquake 3-Second Shake Timer State
+  const [isEarthquakeShaking, setIsEarthquakeShaking] = useState<boolean>(false);
+  const earthquakeEndTimeRef = useRef<number>(0);
+
   // References for Three.js Scene Updates
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -639,6 +643,29 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
   // Base camera position reference for Earthquake Shake
   const baseCameraPos = useRef<THREE.Vector3>(new THREE.Vector3(-25, 45, 75));
+
+  // Trigger Earthquake Shake for exactly 3 Seconds
+  useEffect(() => {
+    if (activeDisaster === 'EARTHQUAKE') {
+      setIsEarthquakeShaking(true);
+      earthquakeEndTimeRef.current = Date.now() + 3000;
+      const timer = setTimeout(() => {
+        setIsEarthquakeShaking(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else {
+      setIsEarthquakeShaking(false);
+      earthquakeEndTimeRef.current = 0;
+    }
+  }, [activeDisaster]);
+
+  const handleReTriggerEarthquakeShake = () => {
+    setIsEarthquakeShaking(true);
+    earthquakeEndTimeRef.current = Date.now() + 3000;
+    setTimeout(() => {
+      setIsEarthquakeShaking(false);
+    }, 3000);
+  };
 
   // -------------------------------------------------------------
   // THREE.JS INITIALIZATION & SCENE SETUP
@@ -1042,20 +1069,23 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     domElement.addEventListener('touchmove', onTouchMove, { passive: true });
     domElement.addEventListener('touchend', onTouchEnd);
 
-    // 16. Animation Loop with Dynamic Screen Shaking
+    // 16. Animation Loop with Exactly 3-Second Earthquake Shake Decay
     let animationFrameId: number;
     let clock = new THREE.Clock();
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = clock.getElapsedTime();
+      const now = Date.now();
 
       // =========================================================
-      // DYNAMIC EARTHQUAKE CAMERA SHAKE PHYSICS
+      // DYNAMIC EARTHQUAKE CAMERA SHAKE (EXACTLY 3 SECONDS DURATION)
       // =========================================================
-      if (activeDisaster === 'EARTHQUAKE' && cameraRef.current) {
-        const shakeX = (Math.sin(elapsedTime * 45) + Math.cos(elapsedTime * 65)) * 0.45;
-        const shakeY = (Math.cos(elapsedTime * 50) + Math.sin(elapsedTime * 70)) * 0.35;
+      if (activeDisaster === 'EARTHQUAKE' && now < earthquakeEndTimeRef.current && cameraRef.current) {
+        const remainingFraction = Math.max(0, (earthquakeEndTimeRef.current - now) / 3000);
+        const shakeIntensity = 0.55 * remainingFraction;
+        const shakeX = (Math.sin(elapsedTime * 45) + Math.cos(elapsedTime * 65)) * shakeIntensity;
+        const shakeY = (Math.cos(elapsedTime * 50) + Math.sin(elapsedTime * 70)) * (shakeIntensity * 0.75);
         cameraRef.current.position.set(
           baseCameraPos.current.x + shakeX,
           baseCameraPos.current.y + shakeY,
@@ -1159,7 +1189,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
   return (
     <div className={`fixed inset-0 z-50 bg-slate-950 flex flex-col text-slate-100 select-none overflow-hidden animate-in fade-in ${
-      activeDisaster === 'EARTHQUAKE' ? 'animate-[pulse_0.4s_ease-in-out_infinite]' : ''
+      isEarthquakeShaking ? 'animate-[pulse_0.2s_ease-in-out_infinite]' : ''
     }`}>
       
       {/* ======================================================== */}
@@ -1192,8 +1222,17 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Camera Focus Pills */}
+          {/* Camera Focus Pills & Tremor Re-Trigger */}
           <div className="flex items-center gap-1 shrink-0">
+            {activeDisaster === 'EARTHQUAKE' && (
+              <button
+                onClick={handleReTriggerEarthquakeShake}
+                className="px-2 py-1 rounded-lg bg-amber-950 border border-amber-500/50 text-amber-300 font-bold text-[10px] active:scale-95 transition"
+                title="Re-shake for 3 seconds"
+              >
+                ⚡ Shake (3s)
+              </button>
+            )}
             <button
               onClick={handleFocusStrandedPeople}
               className="px-2 py-1 rounded-lg bg-red-950/80 border border-red-500/40 text-red-300 font-bold text-[10px] active:scale-95 transition"
@@ -1300,13 +1339,19 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         )}
 
         {/* ======================================================= */}
-        {/* SCREEN OVERLAY EFFECT 5: 🏚️ EARTHQUAKE DUST SHAKE VIGNETTE */}
+        {/* SCREEN OVERLAY EFFECT 5: 🏚️ EARTHQUAKE (3-SECOND SHAKE) */}
         {/* ======================================================= */}
         {activeDisaster === 'EARTHQUAKE' && (
           <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-t from-stone-900/30 via-transparent to-amber-950/20" />
-            <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-stone-950/80 border border-amber-500/60 text-[9px] font-mono text-amber-400">
-              ⚠️ SEISMIC AFTERSHOCK TREMOR ACTIVE
+            <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold transition-all ${
+              isEarthquakeShaking 
+                ? 'bg-amber-950/90 border-amber-400 text-amber-300 shadow-lg animate-pulse' 
+                : 'bg-emerald-950/80 border-emerald-500/60 text-emerald-400'
+            }`}>
+              {isEarthquakeShaking 
+                ? '⚠️ SEISMIC AFTERSHOCK SHAKE ACTIVE (3.0s)...' 
+                : '✅ SEISMIC TREMOR STABILIZED (3.0s COMPLETE)'}
             </div>
           </div>
         )}
