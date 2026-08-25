@@ -196,7 +196,7 @@ export const DhostAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       value={{
         currentUser,
         authStatus,
-        isAuthenticated: currentUser !== null && (authStatus === 'AUTHENTICATED' || authStatus === 'OFFLINE_AUTHENTICATED'),
+        isAuthenticated: currentUser !== null && authStatus !== 'GUEST' && authStatus !== 'UNAUTHORIZED',
         networkMode,
         setNetworkMode,
         login,
