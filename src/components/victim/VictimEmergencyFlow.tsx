@@ -24,13 +24,16 @@ import {
   Layers,
   Zap,
   Lock,
-  BatteryCharging
+  Heart,
+  Activity
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDhostAuth } from '../../store/DhostAuthContext';
 import { EmergencyPacket } from '../../types/dhostAuth';
 import { EmergencyPacketCard } from '../common/EmergencyPacketCard';
 import { DhostPathVisualizer } from '../common/DhostPathVisualizer';
+import { DhostSurvivalClock } from '../common/DhostSurvivalClock';
+import { DhostNetworkRadar } from '../common/DhostNetworkRadar';
 
 export const VictimEmergencyFlow: React.FC = () => {
   const navigate = useNavigate();
@@ -57,7 +60,7 @@ export const VictimEmergencyFlow: React.FC = () => {
   const [isSirenPlaying, setIsSirenPlaying] = useState(false);
   const [isStrobeActive, setIsStrobeActive] = useState(false);
   const [strobeColor, setStrobeColor] = useState<'white' | 'red'>('white');
-  const [activeTab, setActiveTab] = useState<'RADAR' | 'PACKET' | 'PATH'>('RADAR');
+  const [activeTab, setActiveTab] = useState<'RADAR' | 'SURVIVAL_CLOCK' | 'PACKET' | 'MESH_RADAR'>('RADAR');
 
   // Simulated Live Real-Time Distance & ETA Countdown
   const [liveDistanceMeters, setLiveDistanceMeters] = useState(580);
@@ -65,9 +68,12 @@ export const VictimEmergencyFlow: React.FC = () => {
 
   // Battery Survival State
   const batteryPct = getBatteryLevel();
-  const [isSurvivalMode, setIsSurvivalMode] = useState(batteryPct <= 20);
   const [lastGaspSent, setLastGaspSent] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+
+  // Micro-Alive Beacon State
+  const [alivePulseCount, setAlivePulseCount] = useState(0);
+  const [lastAliveTimestamp, setLastAliveTimestamp] = useState<number | null>(null);
 
   // Automatic Instant SOS Creation on Mount if no packet exists
   useEffect(() => {
@@ -142,8 +148,13 @@ export const VictimEmergencyFlow: React.FC = () => {
 
   const handleSendLastGaspLocation = () => {
     setLastGaspSent(true);
-    // Vibrate & alert
     if ('vibrate' in navigator) navigator.vibrate([100, 100, 100]);
+  };
+
+  const handleSendMicroAliveBeacon = () => {
+    setAlivePulseCount(c => c + 1);
+    setLastAliveTimestamp(Date.now());
+    if ('vibrate' in navigator) navigator.vibrate([50, 50]);
   };
 
   const handleSimulatePhotoAttach = () => {
@@ -207,55 +218,59 @@ export const VictimEmergencyFlow: React.FC = () => {
         </div>
       </div>
 
-      {/* Battery Survival Mode Alert */}
-      {batteryPct <= 25 && (
-        <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/50 space-y-2 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-black text-amber-400 flex items-center gap-1.5">
-              <Zap className="w-4 h-4" />
-              <span>BATTERY SURVIVAL MODE ({batteryPct}%)</span>
-            </span>
-            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
-              ACTIVE
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-300">
-            Animations reduced. Background mesh sync prioritized to preserve remaining battery.
-          </p>
-          {!lastGaspSent ? (
-            <button
-              onClick={handleSendLastGaspLocation}
-              className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition"
-            >
-              📍 SEND LAST KNOWN LOCATION (BEFORE SHUTDOWN)
-            </button>
-          ) : (
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 text-center font-bold text-[11px]">
-              ✓ Last Known Location Latched to LoRa Mesh Nodes
-            </div>
-          )}
+      {/* 1-Tap "I AM STILL HERE" Micro-Alive Beacon */}
+      <div className="p-3.5 rounded-3xl bg-slate-900 border border-slate-800 space-y-2 shadow-lg">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-black text-white flex items-center gap-1.5">
+            <Heart className="w-4 h-4 text-red-400 animate-pulse" />
+            <span>"I AM STILL HERE" MICRO-BEACON</span>
+          </span>
+          <span className="text-[10px] font-mono text-slate-400">12-Byte Pulse</span>
         </div>
-      )}
 
-      {/* Tab Switcher (Radar vs Packet Card vs Store-and-Forward Path) */}
-      <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-900 border border-slate-800 text-[11px] font-bold">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSendMicroAliveBeacon}
+            className="flex-1 py-2.5 px-3 rounded-2xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition"
+          >
+            <Activity className="w-4 h-4" />
+            <span>I'M STILL HERE (TAP TO CHIRP)</span>
+          </button>
+        </div>
+
+        {lastAliveTimestamp && (
+          <div className="flex items-center justify-between text-[10px] font-mono text-emerald-400 bg-slate-950 p-2 rounded-xl border border-slate-800">
+            <span>✓ Alive Pulse #{alivePulseCount} Latched</span>
+            <span>{new Date(lastAliveTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800 text-[10px] font-bold">
         <button
           onClick={() => setActiveTab('RADAR')}
           className={`py-2 rounded-xl transition ${activeTab === 'RADAR' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'}`}
         >
-          🧭 Live Radar
+          🧭 Radar
+        </button>
+        <button
+          onClick={() => setActiveTab('SURVIVAL_CLOCK')}
+          className={`py-2 rounded-xl transition ${activeTab === 'SURVIVAL_CLOCK' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'}`}
+        >
+          ⏱️ Survival
         </button>
         <button
           onClick={() => setActiveTab('PACKET')}
           className={`py-2 rounded-xl transition ${activeTab === 'PACKET' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'}`}
         >
-          📜 Packet Intel
+          📜 Packet
         </button>
         <button
-          onClick={() => setActiveTab('PATH')}
-          className={`py-2 rounded-xl transition ${activeTab === 'PATH' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'}`}
+          onClick={() => setActiveTab('MESH_RADAR')}
+          className={`py-2 rounded-xl transition ${activeTab === 'MESH_RADAR' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'}`}
         >
-          📡 DHOST Path
+          📡 Mesh
         </button>
       </div>
 
@@ -414,17 +429,31 @@ export const VictimEmergencyFlow: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: EMERGENCY PACKET CARD */}
+      {/* TAB 2: DHOST SURVIVAL CLOCK */}
+      {activeTab === 'SURVIVAL_CLOCK' && (
+        <div className="space-y-3 animate-in fade-in">
+          <DhostSurvivalClock batteryPct={batteryPct} />
+          
+          <button
+            onClick={handleSendLastGaspLocation}
+            className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition"
+          >
+            {lastGaspSent ? '✓ Last Known GPS Latched to Relays' : '📍 SEND LAST KNOWN LOCATION (BEFORE SHUTDOWN)'}
+          </button>
+        </div>
+      )}
+
+      {/* TAB 3: EMERGENCY PACKET CARD */}
       {activeTab === 'PACKET' && activePacket && (
         <div className="space-y-3 animate-in fade-in">
           <EmergencyPacketCard packet={activePacket} />
         </div>
       )}
 
-      {/* TAB 3: DHOST STORE-AND-FORWARD PATHWAY */}
-      {activeTab === 'PATH' && activePacket && (
+      {/* TAB 4: SELF-HEALING MESH RADAR */}
+      {activeTab === 'MESH_RADAR' && activePacket && (
         <div className="space-y-3 animate-in fade-in">
-          <DhostPathVisualizer packet={activePacket} />
+          <DhostNetworkRadar packet={activePacket} />
         </div>
       )}
 
