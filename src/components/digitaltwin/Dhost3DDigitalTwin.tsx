@@ -94,11 +94,11 @@ const DISASTER_CONFIGS: Record<DisasterCategory, DisasterConfig> = {
     name: 'Tsunami / Flood Surge',
     icon: '🌊',
     color: 'from-blue-600 to-cyan-500',
-    scenarioTitle: 'Tsunami Surge Inundation (4.2ft Street Flood)',
+    scenarioTitle: 'Tsunami Surge Inundation (5s Giant Wave Over Buildings)',
     incidentLandmark: 'Commercial Complex Rooftop (Old Bridge Sector)',
     casualtySummary: '14 Stranded Civilians • 2 Leg Fractures',
-    hazardDescription: 'Rapid water surge currents, submerged 11kV lines, hydro-lock hazard',
-    screenEffectName: '🌊 WATER LENS SPLASH & WAVE SURGE',
+    hazardDescription: 'Rapid 18m tsunami surge sweeping over streets, submerged 11kV lines',
+    screenEffectName: '🌊 5-SECOND TSUNAMI SURGE WAVE OVER BUILDINGS',
     skyColor: 0x020617,
     fogColor: 0x031525,
     options: [
@@ -631,11 +631,17 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   const [isEarthquakeShaking, setIsEarthquakeShaking] = useState<boolean>(false);
   const earthquakeEndTimeRef = useRef<number>(0);
 
+  // Tsunami 5-Second Giant Wave Surge State
+  const [isTsunamiSurging, setIsTsunamiSurging] = useState<boolean>(false);
+  const tsunamiEndTimeRef = useRef<number>(0);
+
   // References for Three.js Scene Updates
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const hazardVolumeRef = useRef<THREE.Mesh | null>(null);
+  const tsunamiWaveMeshRef = useRef<THREE.Mesh | null>(null);
+  const tsunamiFoamMeshRef = useRef<THREE.Mesh | null>(null);
   const particleSystemRef = useRef<THREE.Points | null>(null);
   const vehicleGroupRef = useRef<THREE.Group | null>(null);
   const rescueBeamRef = useRef<THREE.Mesh | null>(null);
@@ -644,7 +650,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
   // Base camera position reference for Earthquake Shake
   const baseCameraPos = useRef<THREE.Vector3>(new THREE.Vector3(-25, 45, 75));
 
-  // Trigger Earthquake Shake for exactly 3 Seconds
+  // Trigger Earthquake & Tsunami Timers on Switch
   useEffect(() => {
     if (activeDisaster === 'EARTHQUAKE') {
       setIsEarthquakeShaking(true);
@@ -657,6 +663,18 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       setIsEarthquakeShaking(false);
       earthquakeEndTimeRef.current = 0;
     }
+
+    if (activeDisaster === 'FLOOD') {
+      setIsTsunamiSurging(true);
+      tsunamiEndTimeRef.current = Date.now() + 5000;
+      const timer = setTimeout(() => {
+        setIsTsunamiSurging(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setIsTsunamiSurging(false);
+      tsunamiEndTimeRef.current = 0;
+    }
   }, [activeDisaster]);
 
   const handleReTriggerEarthquakeShake = () => {
@@ -665,6 +683,14 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     setTimeout(() => {
       setIsEarthquakeShaking(false);
     }, 3000);
+  };
+
+  const handleReTriggerTsunamiWave = () => {
+    setIsTsunamiSurging(true);
+    tsunamiEndTimeRef.current = Date.now() + 5000;
+    setTimeout(() => {
+      setIsTsunamiSurging(false);
+    }, 5000);
   };
 
   // -------------------------------------------------------------
@@ -847,14 +873,40 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
 
     buildingsGroup.add(hospGroup);
 
-    // 10. DYNAMIC HAZARD VOLUMES IN THE CITY
+    // 10. DYNAMIC HAZARD VOLUMES & 5-SECOND GIANT TSUNAMI WAVE WALL
     if (activeDisaster === 'FLOOD') {
-      const floodGeo = new THREE.BoxGeometry(190, 4.5, 190);
-      const floodMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.9 });
+      // Persistent 4.2ft Flood Water Surface
+      const floodGeo = new THREE.BoxGeometry(220, 4.5, 220);
+      const floodMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, transparent: true, opacity: 0.65, roughness: 0.1, metalness: 0.9 });
       const floodMesh = new THREE.Mesh(floodGeo, floodMat);
       floodMesh.position.set(-10, 2.25, 10);
       scene.add(floodMesh);
       hazardVolumeRef.current = floodMesh;
+
+      // 3D GIANT TSUNAMI WAVE CREST WALL (Sweeps over buildings for 5 seconds)
+      const waveGeo = new THREE.CylinderGeometry(20, 28, 220, 32, 1, false, 0, Math.PI);
+      const waveMat = new THREE.MeshStandardMaterial({ 
+        color: 0x0369a1, 
+        transparent: true, 
+        opacity: 0.85, 
+        roughness: 0.15, 
+        metalness: 0.8 
+      });
+      const waveMesh = new THREE.Mesh(waveGeo, waveMat);
+      waveMesh.rotation.z = Math.PI / 2;
+      waveMesh.position.set(0, 14, -120);
+      scene.add(waveMesh);
+      tsunamiWaveMeshRef.current = waveMesh;
+
+      // White Foam Crest on top of the wave
+      const foamGeo = new THREE.CylinderGeometry(2.5, 3.5, 222, 16);
+      const foamMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const foamMesh = new THREE.Mesh(foamGeo, foamMat);
+      foamMesh.rotation.z = Math.PI / 2;
+      foamMesh.position.set(0, 22, -120);
+      scene.add(foamMesh);
+      tsunamiFoamMeshRef.current = foamMesh;
+
     } else if (activeDisaster === 'WILDFIRE') {
       const fireGeo = new THREE.CylinderGeometry(25, 35, 18, 32);
       const fireMat = new THREE.MeshStandardMaterial({ color: 0xef4444, transparent: true, opacity: 0.45, emissive: 0xd97706, emissiveIntensity: 0.8 });
@@ -1069,7 +1121,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
     domElement.addEventListener('touchmove', onTouchMove, { passive: true });
     domElement.addEventListener('touchend', onTouchEnd);
 
-    // 16. Animation Loop with Exactly 3-Second Earthquake Shake Decay
+    // 16. Animation Loop (Earthquake Shake + 5-Second Tsunami Wave Sweep)
     let animationFrameId: number;
     let clock = new THREE.Clock();
 
@@ -1079,7 +1131,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
       const now = Date.now();
 
       // =========================================================
-      // DYNAMIC EARTHQUAKE CAMERA SHAKE (EXACTLY 3 SECONDS DURATION)
+      // 1. EARTHQUAKE CAMERA SHAKE (EXACTLY 3 SECONDS DURATION)
       // =========================================================
       if (activeDisaster === 'EARTHQUAKE' && now < earthquakeEndTimeRef.current && cameraRef.current) {
         const remainingFraction = Math.max(0, (earthquakeEndTimeRef.current - now) / 3000);
@@ -1094,6 +1146,29 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         cameraRef.current.lookAt(-5, 8, 0);
       } else if (cameraRef.current) {
         cameraRef.current.position.copy(baseCameraPos.current);
+      }
+
+      // =========================================================
+      // 2. TSUNAMI 5-SECOND GIANT WAVE SWEEP OVER BUILDINGS
+      // =========================================================
+      if (activeDisaster === 'FLOOD' && tsunamiWaveMeshRef.current && tsunamiFoamMeshRef.current) {
+        if (now < tsunamiEndTimeRef.current) {
+          // Progress from 0.0 to 1.0 over 5000ms
+          const progress = 1.0 - (tsunamiEndTimeRef.current - now) / 5000;
+          // Sweep Z coordinate from -120 to +90 over city buildings
+          const waveZ = -120 + progress * 210;
+          const waveHeight = Math.sin(progress * Math.PI) * 18 + 5;
+
+          tsunamiWaveMeshRef.current.position.set(0, waveHeight, waveZ);
+          tsunamiWaveMeshRef.current.visible = true;
+
+          tsunamiFoamMeshRef.current.position.set(0, waveHeight + 7, waveZ);
+          tsunamiFoamMeshRef.current.visible = true;
+        } else {
+          // Hide wave wall after 5s (settled into persistent 4.2ft street flood)
+          tsunamiWaveMeshRef.current.visible = false;
+          tsunamiFoamMeshRef.current.visible = false;
+        }
       }
 
       // Particles Motion
@@ -1222,7 +1297,7 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Camera Focus Pills & Tremor Re-Trigger */}
+          {/* Camera Focus Pills & Tremor / Wave Re-Trigger */}
           <div className="flex items-center gap-1 shrink-0">
             {activeDisaster === 'EARTHQUAKE' && (
               <button
@@ -1231,6 +1306,15 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
                 title="Re-shake for 3 seconds"
               >
                 ⚡ Shake (3s)
+              </button>
+            )}
+            {activeDisaster === 'FLOOD' && (
+              <button
+                onClick={handleReTriggerTsunamiWave}
+                className="px-2 py-1 rounded-lg bg-cyan-950 border border-cyan-500/50 text-cyan-300 font-bold text-[10px] active:scale-95 transition"
+                title="Re-run 5-second giant tsunami wave"
+              >
+                🌊 Wave (5s)
               </button>
             )}
             <button
@@ -1289,16 +1373,31 @@ export const Dhost3DDigitalTwin: React.FC<Props> = ({
         <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none" />
 
         {/* ======================================================= */}
-        {/* SCREEN OVERLAY EFFECT 1: 🌊 TSUNAMI / FLOOD WATER SPLASH */}
+        {/* SCREEN OVERLAY EFFECT 1: 🌊 5-SECOND TSUNAMI SURGE WAVE */}
         {/* ======================================================= */}
         {activeDisaster === 'FLOOD' && (
           <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
             {/* Water Droplets on Camera Glass */}
-            <div className="absolute top-4 left-6 w-12 h-12 rounded-full bg-cyan-400/20 backdrop-blur-[2px] border border-cyan-300/40 shadow-inner animate-pulse" />
-            <div className="absolute bottom-10 right-8 w-16 h-16 rounded-full bg-blue-500/20 backdrop-blur-[3px] border border-blue-400/50 shadow-inner" />
-            <div className="absolute top-1/3 right-12 w-8 h-8 rounded-full bg-cyan-300/25 backdrop-blur-[1px] border border-cyan-200/40" />
+            <div className="absolute top-4 left-6 w-12 h-12 rounded-full bg-cyan-400/30 backdrop-blur-[2px] border border-cyan-300/60 shadow-inner animate-pulse" />
+            <div className="absolute bottom-10 right-8 w-16 h-16 rounded-full bg-blue-500/30 backdrop-blur-[3px] border border-blue-400/70 shadow-inner" />
+            <div className="absolute top-1/3 right-12 w-8 h-8 rounded-full bg-cyan-300/35 backdrop-blur-[1px] border border-cyan-200/50" />
             {/* Wave Splash Vignette */}
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-cyan-600/30 via-cyan-500/10 to-transparent animate-pulse" />
+            <div className={`absolute inset-x-0 bottom-0 transition-all duration-500 ${
+              isTsunamiSurging 
+                ? 'h-48 bg-gradient-to-t from-cyan-600/60 via-cyan-500/30 to-transparent animate-pulse' 
+                : 'h-20 bg-gradient-to-t from-cyan-600/20 to-transparent'
+            }`} />
+            
+            {/* Tsunami Surge Live Status Pill */}
+            <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold transition-all ${
+              isTsunamiSurging 
+                ? 'bg-cyan-950/90 border-cyan-400 text-cyan-300 shadow-lg animate-pulse' 
+                : 'bg-emerald-950/80 border-emerald-500/60 text-emerald-400'
+            }`}>
+              {isTsunamiSurging 
+                ? '🌊 18M TSUNAMI WAVE SURGE SWEEPING OVER BUILDINGS (5.0s)...' 
+                : '✅ TSUNAMI SURGE COMPLETE • WATER STABILIZED AT 4.2FT'}
+            </div>
           </div>
         )}
 
